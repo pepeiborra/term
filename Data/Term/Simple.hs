@@ -1,4 +1,4 @@
-module Data.Term.Simple where
+module Data.Term.Simple (TermF(..), Term, constant, term, termId) where
 
 import Control.Monad.Free
 import Data.Foldable
@@ -6,22 +6,13 @@ import Data.Traversable
 import Data.Term
 
 data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show)
-data Var        = VName String | VAuto Int deriving (Eq, Ord, Show)
-
 type Term1 id = Free (TermF id)
-
-ident :: id -> Term1 id a
-ident f = term f []
 
 term :: id -> [Term1 id a] -> Term1 id a
 term f = Impure . Term f
 
-
-var :: Functor f =>  String -> Free f Var
-var  = return . VName
-
-var' :: Functor f => Int -> Free f Var
-var' = return . VAuto
+constant :: id -> Term1 id a
+constant f = term f []
 
 termId :: MonadPlus m => Term1 id a -> m id
 termId = foldFree (const mzero) f where
@@ -41,7 +32,6 @@ instance Eq id => Unify (TermF id) where
       (Impure t, Impure s) -> zipTermM_ unifyF t s
    zipTermM_ f (Term f1 tt1) (Term f2 tt2) | f1 == f2 = zipWithM_ f tt1 tt2
                                            | otherwise = fail "structure mismatch"
-
 -- Functor boilerplate
 -- --------------------
 instance Functor (TermF id) where

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverlappingInstances, UndecidableInstances #-}
+{-# LANGUAGE OverlappingInstances, UndecidableInstances, FlexibleContexts #-}
 module Data.Term.IOVar where
 
 import Control.Monad.Free

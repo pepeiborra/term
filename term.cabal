@@ -20,5 +20,5 @@ Library
                FlexibleInstances, TypeSynonymInstances,
                GeneralizedNewtypeDeriving
 
-  exposed-modules: Data.Term, Data.Term.Simple
+  exposed-modules: Data.Term, Data.Term.Simple, Data.Term.Var, Data.Term.IOVar
   ghc-options: -Wall -fno-warn-name-shadowing
