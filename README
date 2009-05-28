@@ -1,0 +1,19 @@
+Term
+-----
+
+Term Rewriting library based on the Free monad representation of terms.
+
+Providing, for any representation of terms, generic
+ - matching
+ - unification
+ - equality up to renaming
+ - rewriting
+ - innermost rewriting (work in progress)
+ - narrowing
+ - basic narrowing
+ - narrowing on demand
+
+author: Pepe Iborra
+maintainer: pepeiborra@gmail.com
+homepage: http://github.com/pepeiborra/term
+
