@@ -1,0 +1,23 @@
+name: term
+version: 0.1
+Cabal-Version:  >= 1.2.3
+build-type: Simple
+license: PublicDomain
+author: Pepe Iborra
+maintainer: pepeiborra@gmail.com
+homepage: http://github.com/pepeiborra/term
+description: terms, matching, unification, rewriting and narrowing 
+synopsis: Term Rewriting Systems
+category: Data
+stability: experimental
+
+
+Library
+  buildable: True
+  build-depends: base, transformers, containers, control-monad-free
+  extensions:  UndecidableInstances, OverlappingInstances, ScopedTypeVariables,
+               MultiParamTypeClasses, FunctionalDependencies,
+               FlexibleInstances, TypeSynonymInstances,
+               GeneralizedNewtypeDeriving
+
+  exposed-modules: Data.Term, Data.Term.Simple
