@@ -8,13 +8,13 @@ module Data.Term (
      Match(..), Unify(..), matches, unifies, equiv,
      Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkSubst,
      MonadEnv(..), mkFind, find',
-     fresh
+     MonadFresh(..), fresh
      ) where
 
 import Control.Applicative
 import Control.Monad.Free (Free(..), isPure)
 import Control.Monad.Free.Zip
-import Control.Monad (replicateM)
+import Control.Monad (liftM, replicateM, join)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.State(State, StateT, get, put, execStateT, evalStateT)
 import Data.Foldable (Foldable, toList)
@@ -70,14 +70,23 @@ restrictTo vv = liftSubst f where
 fromList :: Ord v => [(v,Free termF v)] -> Substitution termF v
 fromList = Subst . Map.fromList
 
-zonk :: (Functor termF, Ord var) => Substitution termF var -> Free termF var -> Free termF var
-zonk subst = (>>= f) where
+zonkTerm :: (Functor termF, Ord var) => Substitution termF var -> (var -> var') -> Free termF var -> Free termF var'
+zonkTerm subst fv = (>>= f) where
    f v = case lookupSubst v subst of
-           Nothing -> return v
-           Just t  -> zonk subst t
+           Nothing -> return (fv v)
+           Just t  -> zonkTerm subst fv t
+
+
+zonkTermM :: (Traversable termF, Ord var, Monad m) =>
+             Substitution termF var -> (var -> m var') -> Free termF var -> m(Free termF var')
+zonkTermM subst fv = liftM join . mapM f where
+   f v = case lookupSubst v subst of
+           Nothing -> Pure `liftM` fv v
+           Just t  -> zonkTermM subst fv t
+
 
 zonkSubst :: (Functor termF, Ord var) => Substitution termF var -> Substitution termF var
-zonkSubst s = liftSubst (Map.map (zonk s)) s
+zonkSubst s = liftSubst (Map.map (zonkTerm s id)) s
 
 -- -----------
 -- Unification
@@ -107,7 +116,7 @@ matches :: forall termF var. (Match termF, Ord var) => Free termF var-> Free ter
 matches t u = isJust (evalStateT (match t u) (mempty :: Substitution termF var))
 
 class (Eq (termF ()), Traversable termF) => Match termF where
-    match :: MonadEnv termF var m => Free termF var -> Free termF var -> m ()
+    match :: (Eq var, MonadEnv termF var m) => Free termF var -> Free termF var -> m ()
 
 instance (Traversable termF, Eq (termF ())) =>  Match termF where
   match t s = do
@@ -148,12 +157,12 @@ equiv t u = case execStateT (evalStateT (fresh u >>= \u' -> (lift $ unify t u'))
 -- Environments: handling substitutions
 -- ------------------------------------
 
-class (Ord var, Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
+class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
     varBind :: var -> Free termF var -> m ()
     find    :: var -> m (Free termF var)
-    zonkM   :: Free termF var -> m (Free termF var)
+    zonkM   :: (var -> m var') -> Free termF var -> m (Free termF var')
 
-mkFind :: MonadEnv termF var m => Substitution termF var -> (var -> m(Free termF var))
+mkFind :: (Ord var, MonadEnv termF var m) => Substitution termF var -> (var -> m(Free termF var))
 mkFind s v = let mb_t = lookupSubst v s in
              case mb_t of
                 Just (Pure v') -> mkFind s v'
@@ -164,10 +173,10 @@ find' :: MonadEnv termF v m => Free termF v -> m(Free termF v)
 find' (Pure t) = find t
 find' t        = return t
 
-instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var) m) where
+instance (Monad m, Traversable termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var) m) where
   varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
   find t  = get >>= \s -> mkFind s t
-  zonkM t = get >>= \s -> return (zonk s t)
+  zonkM fv t = get >>= \s -> zonkTermM s fv t
 
 -- ------------------------------------------
 -- MonadFresh: Variants of terms and clauses
