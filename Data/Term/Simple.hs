@@ -40,12 +40,13 @@ instance Eq id => Unify (TermF id) where
       (_, Pure vs)  -> {-if vs `Set.member` Set.fromList (vars t') then fail "occurs" else-} varBind vs t'
       (Impure t, Impure s) -> zipTermM_ unifyF t s
    zipTermM_ f (Term f1 tt1) (Term f2 tt2) | f1 == f2 = zipWithM_ f tt1 tt2
+                                           | otherwise = fail "structure mismatch"
 
 -- Functor boilerplate
 -- --------------------
 instance Functor (TermF id) where
     fmap     f (Term a tt) = Term a (fmap f tt)
 instance Foldable (TermF id) where
-    foldMap  f (Term a tt) = foldMap f tt
+    foldMap  f (Term _ tt) = foldMap f tt
 instance Traversable (TermF id) where
     traverse f (Term a tt) = Term a `fmap` traverse f tt
