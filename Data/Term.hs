@@ -4,20 +4,20 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Data.Term (
-     subterms, isVar, vars,
-     Match(..), Unify(..), matches, unifies,
-     Substitution(..), MonadEnv(..), find'
+     Term, subterms, isVar, vars,
+     Match(..), Unify(..), matches, unifies, equiv,
+     Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkSubst,
+     MonadEnv(..), mkFind, find',
+     MonadFresh(..), fresh
      ) where
 
-import Control.Arrow (first, second)
 import Control.Applicative
 import Control.Monad.Free (Free(..), isPure)
 import Control.Monad.Free.Zip
-import Control.Monad (MonadPlus, liftM, msum, ap, replicateM, zipWithM_)
+import Control.Monad (replicateM)
 import Control.Monad.Trans (lift)
-import Control.Monad.Trans.State(State, StateT, get, put, modify, execState, execStateT, evalStateT)
-import Data.Foldable (Foldable, foldMap, toList)
-import Data.List ((\\))
+import Control.Monad.Trans.State(State, StateT, get, put, execStateT, evalStateT)
+import Data.Foldable (Foldable, toList)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
@@ -51,8 +51,10 @@ isVar = isPure
 newtype Substitution termF var = Subst {unSubst::Map var (Free termF var)}
   deriving (Monoid)
 
+liftSubst :: (Map v (Free t v) ->  Map v' (Free t' v')) -> Substitution t v -> Substitution t' v'
 liftSubst f (Subst e) = Subst (f e)
 
+lookupSubst :: Ord v => v -> Substitution t v -> Maybe (Free t v)
 lookupSubst v (Subst m) = Map.lookup v m
 
 applySubst :: (Ord v, Functor t) => Substitution t v -> Free t v -> Free t v
@@ -121,7 +123,7 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
 -- --------------------------
 
 equiv ::  (Ord var, Enum var, Ord (termF (Free termF var)), Unify termF) => Free termF var -> Free termF var -> Bool
-equiv t u = case execStateT (evalStateT (fresh u >>= \u' -> (lift $ unify t u)) freshVars) mempty of
+equiv t u = case execStateT (evalStateT (fresh u >>= \u' -> (lift $ unify t u')) freshVars) mempty of
               Just x -> isRenaming x
               _   -> False
  where
@@ -151,12 +153,14 @@ class (Ord var, Functor termF, Monad m) => MonadEnv termF var m | m -> termF var
     find    :: var -> m (Free termF var)
     zonkM   :: Free termF var -> m (Free termF var)
 
+mkFind :: MonadEnv termF var m => Substitution termF var -> (var -> m(Free termF var))
 mkFind s v = let mb_t = lookupSubst v s in
              case mb_t of
                 Just (Pure v') -> mkFind s v'
                 Just t         -> varBind v t >> return t
                 Nothing        -> return (Pure v)
 
+find' :: MonadEnv termF v m => Free termF v -> m(Free termF v)
 find' (Pure t) = find t
 find' t        = return t
 
@@ -184,4 +188,4 @@ fresh t = do
 -- Combinators
 -- -----------
 snub :: Ord a => [a] -> [a]
-snub    = Set.toList . Set.fromList
+snub = Set.toList . Set.fromList

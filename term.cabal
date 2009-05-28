@@ -21,3 +21,4 @@ Library
                GeneralizedNewtypeDeriving
 
   exposed-modules: Data.Term, Data.Term.Simple
+  ghc-options: -Wall -fno-warn-name-shadowing
