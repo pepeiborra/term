@@ -146,38 +146,48 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
 -- Equivalence up to renaming
 -- --------------------------
 
-equiv ::  (Ord var, Enum var, Ord (termF (Free termF var)), Unify termF) => Free termF var -> Free termF var -> Bool
-equiv t u = case execStateT (evalStateT (fresh u >>= \u' -> (lift $ unify t u')) freshVars) mempty of
+equiv :: forall termF var.
+         (Ord var, Enum var, Ord (termF (Free termF var)), Unify termF) => Free termF var -> Free termF var -> Bool
+equiv t u = case execStateT (unify t' u) mempty of
               Just x -> isRenaming x
               _   -> False
  where
+--     t' = evalState evalStateT (mempty :: Substitution termF var, freshVars)
+     t' = fresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
      freshVars = [toEnum i ..]
      i = maximum (0 : map fromEnum (vars t)) + 1
 
 -- ------------------------------------
 -- Environments: handling substitutions
 -- ------------------------------------
-
+-- | Instances need only to define 'varBind' and 'lookupVar'
 class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
-    varBind :: var -> Free termF var -> m ()
-    find    :: var -> m (Free termF var)
-    zonkM   :: (var -> m var') -> Free termF var -> m (Free termF var')
+    varBind   :: var -> Free termF var -> m ()
+    lookupVar :: var -> m (Maybe (Free termF var))
 
-mkFind :: (Ord var, MonadEnv termF var m) => Substitution termF var -> (var -> m(Free termF var))
-mkFind s v = let mb_t = lookupSubst v s in
-             case mb_t of
-                Just (Pure v') -> mkFind s v'
-                Just t         -> varBind v t >> return t
-                Nothing        -> return (Pure v)
+    find      :: var -> m(Free termF var)
+    find v = do
+      mb_t <- lookupVar v
+      case mb_t of
+        Just (Pure v') -> find v'
+        Just t         -> varBind v t >> return t
+        Nothing        -> return (Pure v)
+
+    zonkM :: (Traversable termF) => (var -> m var') -> Free termF var -> m(Free termF var')
+    zonkM fv = liftM join . mapM f where
+        f v = do mb_t <- lookupVar v
+                 case mb_t of
+                   Nothing -> Pure `liftM` fv v
+                   Just t  -> zonkM fv t
+
 
 find' :: MonadEnv termF v m => Free termF v -> m(Free termF v)
 find' (Pure t) = find t
 find' t        = return t
 
-instance (Monad m, Traversable termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var) m) where
+instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var) m) where
   varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
-  find t  = get >>= \s -> mkFind s t
-  zonkM fv t = get >>= \s -> zonkTermM s fv t
+  lookupVar t  = get >>= \s -> return(lookupSubst t s)
 
 -- ------------------------------------------
 -- MonadFresh: Variants of terms and clauses

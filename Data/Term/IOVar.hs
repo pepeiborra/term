@@ -16,20 +16,7 @@ matchesIO t u = (match t u >> return True) `catch` \_ -> return False
 
 instance Traversable termF => MonadEnv termF (IOVar termF) IO where
   varBind (IOVar v) t = writeIORef v (Just t)
-
-  find (IOVar v) = do
-      mb_t <- readIORef v
-      case mb_t of
-        Nothing -> return (Pure $ IOVar v)
-        Just (Pure v') -> find v'
-        Just t -> varBind (IOVar v) t >> return t
-
-  zonkM fv = liftM join . T.mapM f where
-   f (IOVar v) = do
-      mb_t <- readIORef v
-      case mb_t of
-        Just t  -> zonkM fv t
-        Nothing -> Pure `liftM` fv (IOVar v)
+  lookupVar (IOVar v) = readIORef  v
 
 instance MonadFresh (IOVar termF) IO where
   freshVar = IOVar `liftM` newIORef Nothing
