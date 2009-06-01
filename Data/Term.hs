@@ -1,6 +1,6 @@
 {-# LANGUAGE OverlappingInstances, UndecidableInstances, ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, TypeSynonymInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
 
@@ -194,6 +194,10 @@ instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substi
   varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
   lookupVar t  = get >>= \s -> return(lookupSubst t s)
 
+instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var, a) m) where
+  varBind v t = do {(e,x) <- get; put (liftSubst (Map.insert v t) e, x)}
+  lookupVar t  = get >>= \(s,_) -> return(lookupSubst t s)
+
 -- ------------------------------------------
 -- MonadFresh: Variants of terms and clauses
 -- ------------------------------------------
@@ -201,6 +205,8 @@ instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substi
 class Monad m => MonadFresh var m | m -> var where freshVar :: m var
 instance Monad m => MonadFresh v (StateT [v] m)  where freshVar = do { x:xx <- get; put xx; return x}
 instance  MonadFresh v (State [v])  where freshVar = do { x:xx <- get; put xx; return x}
+instance  MonadFresh v (State (a,[v]))  where freshVar = do { (a,x:xx) <- get; put (a,xx); return x}
+
 fresh ::  (Traversable termF, MonadEnv termF var (t m), MonadFresh var m, MonadTrans t) =>
          Free termF var -> t m (Free termF var)
 fresh = go where
