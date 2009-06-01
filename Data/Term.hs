@@ -210,3 +210,14 @@ fresh = go where
           case mb_v' of
             Nothing -> do {v' <- lift freshVar; varBind v (return v'); return (return v')}
             Just v' -> return v'
+
+fresh' ::  (Traversable termF, MonadEnv termF (Either var var') (t m), MonadFresh var' m, MonadTrans t) =>
+          Free termF var -> t m (Free termF var')
+fresh' = go where
+  go  = liftM join . T.mapM f
+  f v = do
+          mb_v' <- lookupVar (Left v)
+          case mb_v' of
+            Nothing -> do {v' <- lift freshVar; varBind (Left v) (return $ Right v'); return (return v')}
+            Just (Pure (Right v')) -> return (Pure v')
+            _ -> error "impossible: fresh'"
