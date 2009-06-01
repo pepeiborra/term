@@ -5,6 +5,7 @@ import Control.Arrow
 import Control.Monad.Free
 import Control.Monad.Trans
 import Data.IOStableRef
+import qualified Data.Map as Map
 import Data.Term
 import Data.Traversable as T
 import Prelude as P
