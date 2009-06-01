@@ -8,7 +8,7 @@ module Data.Term (
      Term, subterms, isVar, vars,
      Match(..), Unify(..), matches, unifies, equiv,
      Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
-     MonadEnv(..), find, find', zonkM,
+     MonadEnv(..), find',
      MonadFresh(..), fresh, fresh'
      ) where
 
