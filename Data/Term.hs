@@ -15,14 +15,13 @@ module Data.Term (
 import Control.Applicative
 import Control.Monad.Free (Free(..), isPure)
 import Control.Monad.Free.Zip
+import Control.Monad (liftM, join)
+import Control.Monad.Trans (MonadTrans,lift)
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State(State, StateT, get, put, evalState, evalStateT, execStateT)
 #else
 import Control.Monad.State(State, StateT, get, put, evalState, evalStateT, execStateT)
 #endif
-import Control.Monad (liftM, replicateM, join)
-import Control.Monad.Trans (lift)
-import Control.Monad.Trans.State(State, StateT, get, put, execStateT, evalStateT)
 import Data.Foldable (Foldable, toList)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -202,16 +201,12 @@ instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substi
 class Monad m => MonadFresh var m | m -> var where freshVar :: m var
 instance Monad m => MonadFresh v (StateT [v] m)  where freshVar = do { x:xx <- get; put xx; return x}
 instance  MonadFresh v (State [v])  where freshVar = do { x:xx <- get; put xx; return x}
-
-fresh ::  (Traversable termF, Ord var, MonadFresh var m) => Free termF var -> m (Free termF var)
-fresh t = do
-  let vars_t = snub(vars t)
-  fresh_v   <- replicateM (length vars_t) freshVar
-  let subst  = fromList (vars_t `zip` map return fresh_v)
-  return (applySubst subst t)
-
--- -----------
--- Combinators
--- -----------
-snub :: Ord a => [a] -> [a]
-snub = Set.toList . Set.fromList
+fresh ::  (Traversable termF, MonadEnv termF var (t m), MonadFresh var m, MonadTrans t) =>
+         Free termF var -> t m (Free termF var)
+fresh = go where
+  go  = liftM join . T.mapM f
+  f v = do
+          mb_v' <- lookupVar v
+          case mb_v' of
+            Nothing -> do {v' <- lift freshVar; varBind v (return v'); return (return v')}
+            Just v' -> return v'
