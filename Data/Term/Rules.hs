@@ -5,7 +5,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE CPP #-}
 
-{-| This module works with and abstract notion of rule.
+{-| This module works with an abstract notion of rule.
 
     A rule is a set of terms (generally a pair) which must
     be treated as a whole. Concrete examples include
