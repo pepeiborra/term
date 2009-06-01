@@ -19,8 +19,16 @@ import Control.Monad (liftM, join)
 import Control.Monad.Trans (MonadTrans,lift)
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State(State, StateT, get, put, evalState, evalStateT, execStateT)
+import Control.Monad.Trans.List(ListT)
+import Control.Monad.Trans.Reader(ReaderT)
+import Control.Monad.Trans.RWS(RWST)
+import Control.Monad.Trans.Writer(WriterT)
 #else
 import Control.Monad.State(State, StateT, get, put, evalState, evalStateT, execStateT)
+import Control.Monad.List(ListT)
+import Control.Monad.Reader(ReaderT)
+import Control.Monad.RWS(RWST)
+import Control.Monad.Writer(WriterT)
 #endif
 import Data.Foldable (Foldable, toList)
 import Data.Map (Map)
@@ -227,3 +235,31 @@ fresh' = go where
             Nothing -> do {v' <- lift freshVar; varBind (Left v) (return $ Right v'); return (return v')}
             Just (Pure (Right v')) -> return (Pure v')
             _ -> error "impossible: fresh'"
+
+-- ------------------------------
+-- Liftings of monadic operations
+-- ------------------------------
+instance (Monoid w, Functor termF, MonadEnv termF var m) => MonadEnv termF var (WriterT w m) where
+  varBind = (lift.) . varBind
+  lookupVar = lift . lookupVar
+
+instance MonadEnv t v m => MonadEnv t v (ListT m) where
+  varBind   = (lift.) . varBind
+  lookupVar = lift    . lookupVar
+
+instance (Functor termF, MonadEnv termF var m) => MonadEnv termF var (StateT s m) where
+  varBind = (lift.) . varBind
+  lookupVar = lift . lookupVar
+
+instance (Functor termF, MonadEnv termF var m) => MonadEnv termF var (ReaderT r m) where
+  varBind = (lift.) . varBind
+  lookupVar = lift . lookupVar
+
+instance (Monoid w, Functor termF, MonadEnv termF var m) => MonadEnv termF var (RWST r w s m) where
+  varBind = (lift.) . varBind
+  lookupVar = lift . lookupVar
+
+instance MonadFresh var m => MonadFresh var (ListT    m) where freshVar = lift freshVar
+instance MonadFresh var m => MonadFresh var (StateT s m) where freshVar = lift freshVar
+instance (MonadFresh var m,Monoid w) => MonadFresh var (WriterT w m) where freshVar = lift freshVar
+
