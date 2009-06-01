@@ -28,10 +28,11 @@ Library
                GeneralizedNewtypeDeriving
 
   exposed-modules: 
-    Data.Term, 
-    Data.Term.Simple, 
-    Data.Term.Var, 
-    Data.Term.IOVar 
+    Data.Term,
+    Data.Term.Rules,
+    Data.Term.Simple,
+    Data.Term.Var,
+    Data.Term.IOVar
 
   other-modules:
     Data.IOStableRef
