@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 
 module Data.Term (
      Term, subterms, isVar, vars,
@@ -14,6 +15,11 @@ module Data.Term (
 import Control.Applicative
 import Control.Monad.Free (Free(..), isPure)
 import Control.Monad.Free.Zip
+#ifdef TRANSFORMERS
+import Control.Monad.Trans.State(State, StateT, get, put, evalState, evalStateT, execStateT)
+#else
+import Control.Monad.State(State, StateT, get, put, evalState, evalStateT, execStateT)
+#endif
 import Control.Monad (liftM, replicateM, join)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.State(State, StateT, get, put, execStateT, evalStateT)

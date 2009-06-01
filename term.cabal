@@ -11,10 +11,17 @@ synopsis: Term Rewriting Systems
 category: Data
 stability: experimental
 
+Flag transformers
+   default: False
 
 Library
   buildable: True
-  build-depends: base, transformers, containers, control-monad-free
+  build-depends: base, containers, control-monad-free
+  if flag(transformers)
+     build-depends: transformers
+     cpp-options: -DTRANSFORMERS
+  else
+     build-depends: mtl
   extensions:  UndecidableInstances, OverlappingInstances, ScopedTypeVariables,
                MultiParamTypeClasses, FunctionalDependencies,
                FlexibleInstances, TypeSynonymInstances,
