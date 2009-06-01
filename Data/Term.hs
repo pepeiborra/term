@@ -7,9 +7,9 @@
 module Data.Term (
      Term, subterms, isVar, vars,
      Match(..), Unify(..), matches, unifies, equiv,
-     Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkSubst,
-     MonadEnv(..), mkFind, find',
-     MonadFresh(..), fresh
+     Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
+     MonadEnv(..), find, find', zonkM,
+     MonadFresh(..), fresh, fresh'
      ) where
 
 import Control.Applicative
