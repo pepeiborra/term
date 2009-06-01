@@ -67,6 +67,9 @@ restrictTo :: Ord var => [var] -> Substitution id var -> Substitution id var
 restrictTo vv = liftSubst f where
   f e = Map.intersectionWith const e (Map.fromDistinctAscList (zip vv (repeat undefined)))
 
+isEmpty :: Substitution id v -> Bool
+isEmpty (Subst m) = Map.null m
+
 fromList :: Ord v => [(v,Free termF v)] -> Substitution termF v
 fromList = Subst . Map.fromList
 
@@ -76,7 +79,6 @@ zonkTerm subst fv = (>>= f) where
            Nothing -> return (fv v)
            Just t  -> zonkTerm subst fv t
 
-
 zonkTermM :: (Traversable termF, Ord var, Monad m) =>
              Substitution termF var -> (var -> m var') -> Free termF var -> m(Free termF var')
 zonkTermM subst fv = liftM join . mapM f where
@@ -84,9 +86,22 @@ zonkTermM subst fv = liftM join . mapM f where
            Nothing -> Pure `liftM` fv v
            Just t  -> zonkTermM subst fv t
 
-
 zonkSubst :: (Functor termF, Ord var) => Substitution termF var -> Substitution termF var
 zonkSubst s = liftSubst (Map.map (zonkTerm s id)) s
+
+isRenaming :: (Functor termF, Ord var, Ord (termF (Free termF var))) => Substitution termF var -> Bool
+isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKeysMonotonic return subst)
+  where
+--    isBijective :: Ord k => Map.Map k k -> Bool
+     isBijective rel = -- cheap hackish bijectivity check.
+                    -- Ensure that the relation is injective and its inverse is too.
+                    -- The sets of variables must be disjoint too
+                    -- Actually there should be no need to check the inverse
+                    -- since this is a Haskell Map and hence the domain contains no duplicates
+                   Set.size elemsSet == Map.size rel &&
+                   (Map.keysSet rel) `Set.intersection` elemsSet == Set.empty
+       where
+          elemsSet = Set.fromList(Map.elems rel)
 
 -- -----------
 -- Unification
@@ -138,20 +153,6 @@ equiv t u = case execStateT (evalStateT (fresh u >>= \u' -> (lift $ unify t u'))
  where
      freshVars = [toEnum i ..]
      i = maximum (0 : map fromEnum (vars t)) + 1
-
---    isRenaming :: (Functor termF, Ord var, Ord (termF (Free termF var))) => Substitution termF var -> Bool
-     isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKeysMonotonic return subst)
-
---    isBijective :: Ord k => Map.Map k k -> Bool
-     isBijective rel = -- cheap hackish bijectivity check.
-                    -- Ensure that the relation is injective and its inverse is too.
-                    -- The sets of variables must be disjoint too
-                    -- Actually there should be no need to check the inverse
-                    -- since this is a Haskell Map and hence the domain contains no duplicates
-                   Set.size elemsSet == Map.size rel &&
-                   (Map.keysSet rel) `Set.intersection` elemsSet == Set.empty
-       where
-          elemsSet = Set.fromList(Map.elems rel)
 
 -- ------------------------------------
 -- Environments: handling substitutions
