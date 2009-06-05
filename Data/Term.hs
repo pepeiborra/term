@@ -18,7 +18,7 @@ import Control.Monad.Free (Free(..), foldFree, evalFree, isPure)
 import Control.Monad.Free.Zip
 import Control.Monad (liftM, join, MonadPlus(..), msum)
 import Control.Monad.Identity (Identity(..))
-import Control.Monad.Trans (MonadTrans,lift)
+import Control.Monad.Trans (lift)
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
 import Control.Monad.Trans.List(ListT)
@@ -267,24 +267,24 @@ instance MonadFresh v (State [v])     where freshVar = do { x:xx <- get; put xx;
 --instance MonadFresh v (State (a,[v])) where freshVar = withSnd freshVar
 #endif
 
-fresh ::  (Traversable termF, MonadEnv termF var (t m), MonadFresh var m, MonadTrans t) =>
+fresh ::  (Traversable t, MonadEnv t var m, MonadFresh var m) =>
          Term termF var -> t m (Term termF var)
 fresh = go where
   go  = liftM join . T.mapM f
   f v = do
           mb_v' <- lookupVar v
           case mb_v' of
-            Nothing -> do {v' <- lift freshVar; varBind v (return v'); return (return v')}
+            Nothing -> do {v' <- freshVar; varBind v (return v'); return (return v')}
             Just v' -> return v'
 
-fresh' ::  (Traversable termF, MonadEnv termF (Either var var') (t m), MonadFresh var' m, MonadTrans t) =>
-          Term termF var -> t m (Term termF var')
+fresh' ::  (Traversable t, MonadEnv t (Either var var') m, MonadFresh var' m) =>
+          Term t var -> m (Term t var')
 fresh' = go where
   go  = liftM join . T.mapM f
   f v = do
           mb_v' <- lookupVar (Left v)
           case mb_v' of
-            Nothing -> do {v' <- lift freshVar; varBind (Left v) (return $ Right v'); return (return v')}
+            Nothing -> do {v' <- freshVar; varBind (Left v) (return $ Right v'); return (return v')}
             Just (Pure (Right v')) -> return (Pure v')
             _ -> error "impossible: fresh'"
 

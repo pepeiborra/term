@@ -3,7 +3,6 @@ module Data.Term.IOVar where
 
 import Control.Arrow
 import Control.Monad.Free
-import Control.Monad.Trans
 import Data.IOStableRef
 import qualified Data.Map as Map
 import Data.Term
@@ -20,8 +19,8 @@ matchesIO :: (Match t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> 
 matchesIO t u = (matchM t u >> return True) `catch` \_ -> return False
 
 instantiate :: (Traversable term,
-                MonadTrans t, MonadFresh (IOVar term) m, MonadEnv term (Either var (IOVar term)) (t m)) =>
-               Free term var -> t m (Free term (IOVar term))
+                MonadFresh (IOVar term) m, MonadEnv term (Either var (IOVar term)) m) =>
+               Free term var -> m (Free term (IOVar term))
 instantiate = fresh'
 
 getInst :: (Traversable t, Ord var,  Eq (Free t (IOVar t))) =>
