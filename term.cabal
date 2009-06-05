@@ -14,6 +14,9 @@ stability: experimental
 Flag transformers
    default: False
 
+Flag logict
+   default: true
+
 Library
   buildable: True
   build-depends: base, containers, control-monad-free
@@ -22,6 +25,11 @@ Library
      cpp-options: -DTRANSFORMERS
   else
      build-depends: mtl
+
+  if flag(logict)
+     build-depends: logict
+     cpp-options: -DLOGICT
+  
   extensions:  UndecidableInstances, OverlappingInstances, ScopedTypeVariables,
                MultiParamTypeClasses, FunctionalDependencies,
                FlexibleInstances, TypeSynonymInstances,
@@ -32,9 +40,12 @@ Library
     Data.Term.Rules,
     Data.Term.Simple,
     Data.Term.Var,
-    Data.Term.IOVar
+    Data.Term.IOVar,
+    Data.Term.Rewriting,
+    Data.Term.Narrowing
 
   other-modules:
+    Data.Term.Utils,
     Data.IOStableRef
 
   ghc-options: -Wall -fno-warn-name-shadowing

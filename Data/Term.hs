@@ -5,26 +5,28 @@
 {-# LANGUAGE CPP #-}
 
 module Data.Term (
-     Term, subterms, isVar, vars,
-     Match(..), Unify(..), matches, unifies, equiv,
+     Term, subterms, positions, isVar, vars, someSubterm,
+     Position, (!), updateAt, updateAt',
+     Match(..), Unify(..), unify, match, matches, unifies, equiv,
      Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
      MonadEnv(..), find',
      MonadFresh(..), fresh, fresh'
      ) where
 
 import Control.Applicative
-import Control.Monad.Free (Free(..), isPure)
+import Control.Monad.Free (Free(..), foldFree, evalFree, isPure)
 import Control.Monad.Free.Zip
-import Control.Monad (liftM, join)
+import Control.Monad (liftM, join, MonadPlus(..), msum)
+import Control.Monad.Identity (Identity(..))
 import Control.Monad.Trans (MonadTrans,lift)
 #ifdef TRANSFORMERS
-import Control.Monad.Trans.State(State, StateT, get, put, evalState, evalStateT, execStateT)
+import Control.Monad.Trans.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
 import Control.Monad.Trans.List(ListT)
 import Control.Monad.Trans.Reader(ReaderT)
 import Control.Monad.Trans.RWS(RWST)
 import Control.Monad.Trans.Writer(WriterT)
 #else
-import Control.Monad.State(State, StateT, get, put, evalState, evalStateT, execStateT)
+import Control.Monad.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
 import Control.Monad.List(ListT)
 import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWST)
@@ -38,7 +40,8 @@ import Data.Monoid
 import qualified Data.Set as Set
 import Data.Traversable as T
 
-import Prelude hiding (mapM)
+import Data.Term.Utils
+import Prelude as P hiding (mapM)
 
 -- ------
 -- Terms
@@ -46,31 +49,67 @@ import Prelude hiding (mapM)
 
 type Term termF var = Free termF var
 
-subterms :: Foldable termF => Free termF var -> [Free termF var]
-subterms (Impure t) = Impure t : Prelude.concat (subterms <$> toList t)
+subterms :: Foldable termF => Term termF var -> [Term termF var]
+subterms (Impure t) = Impure t : P.concat (subterms <$> toList t)
 subterms _ = []
 
-vars :: (Functor termF, Foldable termF) => Free termF var -> [var]
+vars :: (Functor termF, Foldable termF) => Term termF var -> [var]
 vars = toList
 
-isVar :: Free termF var -> Bool
+isVar :: Term termF var -> Bool
 isVar = isPure
+
+-- ----------
+-- Positions
+-- ----------
+type Position = [Int]
+
+positions :: (Functor f, Foldable f) => Term f v -> [Position]
+positions = foldFree (const []) f where
+    f x = [] : concat (zipWith (\i pp -> map (i:) pp) [1..] (toList x))
+
+(!) :: Foldable f => Term f v -> Position -> Term f v
+Impure t ! (i:ii) = (toList t !! (i-1)) ! ii
+t        ! []     = t
+_        ! _      = error "(!): invalid position"
+
+-- | Updates the subterm at the position given
+--   A failure to reach the position given results in a runtime error
+updateAt  :: (Traversable f) =>  Position -> Term f v -> (Term f v -> Term f v) -> Term f v
+updateAt (0:_)  _          _ = error "updateAt: 0 is not a position!"
+updateAt []     t          f = f t
+updateAt (i:ii) (Impure t) f = Impure (unsafeZipWithG g [1..] t)
+                               where g j st = if i==j then updateAt ii st f else st
+updateAt _      _          _ = error "updateAt: invalid position given"
+
+
+-- | Updates the subterm at the position given,
+--   returning a tuple with the new term and the previous contents at that position.
+--   Failure is contained inside the monad
+updateAt'  :: (Traversable f, Monad m) =>
+              Position -> Term f v -> (Term f v -> Term f v) -> m (Term f v, Term f v)
+updateAt' pos t f = runStateT (go pos t) t where
+ go (0:_)  _          = fail "updateAt: 0 is not a position!"
+ go []     t          = put t >> return (f t)
+ go (i:ii) (Impure t) = Impure `liftM` unsafeZipWithGM g [1..] t
+                               where g j st = if i==j then go ii st else return st
+ go _      _          = fail "updateAt: invalid position given"
 
 -- -------------
 -- Substitutions
 -- -------------
 -- | Note that the notion of substitution composition is not exactly what
 --    Monoid gives here (which is just left biased Map union)
-newtype Substitution termF var = Subst {unSubst::Map var (Free termF var)}
+newtype Substitution termF var = Subst {unSubst::Map var (Term termF var)}
   deriving (Monoid)
 
-liftSubst :: (Map v (Free t v) ->  Map v' (Free t' v')) -> Substitution t v -> Substitution t' v'
+liftSubst :: (Map v (Term t v) ->  Map v' (Term t' v')) -> Substitution t v -> Substitution t' v'
 liftSubst f (Subst e) = Subst (f e)
 
-lookupSubst :: Ord v => v -> Substitution t v -> Maybe (Free t v)
+lookupSubst :: Ord v => v -> Substitution t v -> Maybe (Term t v)
 lookupSubst v (Subst m) = Map.lookup v m
 
-applySubst :: (Ord v, Functor t) => Substitution t v -> Free t v -> Free t v
+applySubst :: (Ord v, Functor t) => Substitution t v -> Term t v -> Term t v
 applySubst s = (>>= f) where
     f v = case lookupSubst v s of
             Nothing -> return v
@@ -83,17 +122,17 @@ restrictTo vv = liftSubst f where
 isEmpty :: Substitution id v -> Bool
 isEmpty (Subst m) = Map.null m
 
-fromList :: Ord v => [(v,Free termF v)] -> Substitution termF v
+fromList :: Ord v => [(v,Term termF v)] -> Substitution termF v
 fromList = Subst . Map.fromList
 
-zonkTerm :: (Functor termF, Ord var) => Substitution termF var -> (var -> var') -> Free termF var -> Free termF var'
+zonkTerm :: (Functor termF, Ord var) => Substitution termF var -> (var -> var') -> Term termF var -> Term termF var'
 zonkTerm subst fv = (>>= f) where
    f v = case lookupSubst v subst of
            Nothing -> return (fv v)
            Just t  -> zonkTerm subst fv t
 
 zonkTermM :: (Traversable termF, Ord var, Monad m) =>
-             Substitution termF var -> (var -> m var') -> Free termF var -> m(Free termF var')
+             Substitution termF var -> (var -> m var') -> Term termF var -> m(Term termF var')
 zonkTermM subst fv = liftM join . mapM f where
    f v = case lookupSubst v subst of
            Nothing -> Pure `liftM` fv v
@@ -102,7 +141,7 @@ zonkTermM subst fv = liftM join . mapM f where
 zonkSubst :: (Functor termF, Ord var) => Substitution termF var -> Substitution termF var
 zonkSubst s = liftSubst (Map.map (zonkTerm s id)) s
 
-isRenaming :: (Functor termF, Ord var, Ord (termF (Free termF var))) => Substitution termF var -> Bool
+isRenaming :: (Functor termF, Ord var, Ord (termF (Term termF var))) => Substitution termF var -> Bool
 isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKeysMonotonic return subst)
   where
 --    isBijective :: Ord k => Map.Map k k -> Bool
@@ -116,18 +155,24 @@ isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKe
        where
           elemsSet = Set.fromList(Map.elems rel)
 
+-- | Only 1st level subterms
+someSubterm :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Term f a)
+someSubterm f  = evalFree (return.return) (msum . liftM2 Impure . interleaveM f)
 -- -----------
 -- Unification
 -- -----------
-unifies :: forall termF var. (Unify termF, Ord var) => Free termF var -> Free termF var -> Bool
-unifies t u = isJust (execStateT (unify t u) (mempty :: Substitution termF var))
+unifies :: forall termF var. (Unify termF, Ord var) => Term termF var -> Term termF var -> Bool
+unifies t u = isJust (unify t u)
+
+unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
+unify t u = execStateT (unifyM t u) mempty
 
 class (Traversable termF, Eq (termF ())) => Unify termF
-  where unify :: (MonadEnv termF var m, Eq var) => Free termF var -> Free termF var -> m ()
+  where unifyM :: (MonadEnv termF var m, Eq var) => Term termF var -> Term termF var -> m ()
 
 -- Generic instance
 instance (Traversable termF, Eq (termF ())) => Unify termF where
-  unify t s = do
+  unifyM t s = do
     t' <- find' t
     s' <- find' s
     unifyOne t' s'
@@ -135,35 +180,36 @@ instance (Traversable termF, Eq (termF ())) => Unify termF where
      unifyOne (Pure vt) s@(Pure vs) = if vt /= vs then varBind vt s else return ()
      unifyOne (Pure vt) s           = {- if vt `Set.member` Set.fromList (vars s) then fail "occurs" else-} varBind vt s
      unifyOne t           (Pure vs) = {-if vs `Set.member` Set.fromList (vars t) then fail "occurs" else-} varBind vs t
-     unifyOne t         s           = zipFree_ unify t s
+     unifyOne t         s           = zipFree_ unifyM t s
 
 -- ---------
 -- Matching
 -- ---------
-matches :: forall termF var. (Match termF, Ord var) => Free termF var-> Free termF var -> Bool
-matches t u = isJust (evalStateT (match t u) (mempty :: Substitution termF var))
+matches :: forall termF var. (Match termF, Ord var) => Term termF var -> Term termF var -> Bool
+matches t u = isJust (match t u)
+
+match :: (Match termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
+match t u = execStateT (matchM t u) mempty
 
 class (Eq (termF ()), Traversable termF) => Match termF where
-    match :: (Eq var, MonadEnv termF var m) => Free termF var -> Free termF var -> m ()
+    matchM :: (Eq var, MonadEnv termF var m) => Term termF var -> Term termF var -> m ()
 
 instance (Traversable termF, Eq (termF ())) =>  Match termF where
-  match t s = do
+  matchM t s = do
     t' <- find' t
     s' <- find' s
     matchOne t' s'
     where matchOne (Pure v) (Pure u) | v == u = return ()
           matchOne (Pure v) u = varBind v u
-          matchOne t        u = zipFree_ match t u
+          matchOne t        u = zipFree_ matchM t u
 
 -- --------------------------
 -- Equivalence up to renaming
 -- --------------------------
 
 equiv :: forall termF var.
-         (Ord var, Enum var, Ord (termF (Free termF var)), Unify termF) => Free termF var -> Free termF var -> Bool
-equiv t u = case execStateT (unify t' u) mempty of
-              Just x -> isRenaming x
-              _   -> False
+         (Ord var, Enum var, Ord (termF (Term termF var)), Unify termF) => Term termF var -> Term termF var -> Bool
+equiv t u = maybe False isRenaming (unify t' u)
  where
 --     t' = evalState evalStateT (mempty :: Substitution termF var, freshVars)
      t' = fresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
@@ -175,10 +221,10 @@ equiv t u = case execStateT (unify t' u) mempty of
 -- ------------------------------------
 -- | Instances need only to define 'varBind' and 'lookupVar'
 class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
-    varBind   :: var -> Free termF var -> m ()
-    lookupVar :: var -> m (Maybe (Free termF var))
+    varBind   :: var -> Term termF var -> m ()
+    lookupVar :: var -> m (Maybe (Term termF var))
 
-    find      :: var -> m(Free termF var)
+    find      :: var -> m(Term termF var)
     find v = do
       mb_t <- lookupVar v
       case mb_t of
@@ -186,7 +232,7 @@ class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
         Just t         -> varBind v t >> return t
         Nothing        -> return (Pure v)
 
-    zonkM :: (Traversable termF) => (var -> m var') -> Free termF var -> m(Free termF var')
+    zonkM :: (Traversable termF) => (var -> m var') -> Term termF var -> m(Term termF var')
     zonkM fv = liftM join . mapM f where
         f v = do mb_t <- lookupVar v
                  case mb_t of
@@ -194,7 +240,7 @@ class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
                    Just t  -> zonkM fv t
 
 
-find' :: MonadEnv termF v m => Free termF v -> m(Free termF v)
+find' :: MonadEnv termF v m => Term termF v -> m(Term termF v)
 find' (Pure t) = find t
 find' t        = return t
 
@@ -203,20 +249,25 @@ instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substi
   lookupVar t  = get >>= \s -> return(lookupSubst t s)
 
 instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var, a) m) where
-  varBind v t = do {(e,x) <- get; put (liftSubst (Map.insert v t) e, x)}
-  lookupVar t  = get >>= \(s,_) -> return(lookupSubst t s)
+  varBind v t = withFst (varBind v t)
+  lookupVar t = withFst (lookupVar t)
 
 -- ------------------------------------------
 -- MonadFresh: Variants of terms and clauses
 -- ------------------------------------------
 
 class Monad m => MonadFresh var m | m -> var where freshVar :: m var
-instance Monad m => MonadFresh v (StateT [v] m)  where freshVar = do { x:xx <- get; put xx; return x}
-instance  MonadFresh v (State [v])  where freshVar = do { x:xx <- get; put xx; return x}
-instance  MonadFresh v (State (a,[v]))  where freshVar = do { (a,x:xx) <- get; put (a,xx); return x}
+instance (Enum v, Monad m) => MonadFresh v (StateT (Sum Int) m) where freshVar = do { Sum i <- get; put (Sum $ succ i); return (toEnum i)}
+instance Monad m => MonadFresh v (StateT [v] m)     where freshVar = do { x:xx <- get; put xx; return x}
+instance Monad m => MonadFresh v (StateT (a,[v]) m) where freshVar = withSnd freshVar
+
+#ifndef TRANSFORMERS
+instance MonadFresh v (State [v])     where freshVar = do { x:xx <- get; put xx; return x}
+--instance MonadFresh v (State (a,[v])) where freshVar = withSnd freshVar
+#endif
 
 fresh ::  (Traversable termF, MonadEnv termF var (t m), MonadFresh var m, MonadTrans t) =>
-         Free termF var -> t m (Free termF var)
+         Term termF var -> t m (Term termF var)
 fresh = go where
   go  = liftM join . T.mapM f
   f v = do
@@ -226,7 +277,7 @@ fresh = go where
             Just v' -> return v'
 
 fresh' ::  (Traversable termF, MonadEnv termF (Either var var') (t m), MonadFresh var' m, MonadTrans t) =>
-          Free termF var -> t m (Free termF var')
+          Term termF var -> t m (Term termF var')
 fresh' = go where
   go  = liftM join . T.mapM f
   f v = do
@@ -262,4 +313,3 @@ instance (Monoid w, Functor termF, MonadEnv termF var m) => MonadEnv termF var (
 instance MonadFresh var m => MonadFresh var (ListT    m) where freshVar = lift freshVar
 instance MonadFresh var m => MonadFresh var (StateT s m) where freshVar = lift freshVar
 instance (MonadFresh var m,Monoid w) => MonadFresh var (WriterT w m) where freshVar = lift freshVar
-

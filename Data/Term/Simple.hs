@@ -21,7 +21,7 @@ termId = foldFree (const mzero) f where
 -- Specific instance for TermF, only for efficiency
 instance Eq id => Unify (TermF id) where
   {-# SPECIALIZE instance Unify (TermF String) #-}
-  unify = unifyF where
+  unifyM = unifyF where
    unifyF t s = do
     t' <- find' t
     s' <- find' s

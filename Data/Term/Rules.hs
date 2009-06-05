@@ -17,8 +17,8 @@
 -}
 module Data.Term.Rules
   (GetVars(..),
-   GetUnifier(..), unifies', equiv',
-   GetMatcher(..), matches',
+   GetUnifier(..), getUnifier, unifies', equiv', getUnifierMdefault,
+   GetMatcher(..), getMatcher, matches', getMatcherMdefault,
    GetFresh(..), getFresh
   ) where
 
@@ -59,7 +59,7 @@ class (Traversable termF) => GetFresh (termF :: * -> *) var thing | thing -> ter
     getFresh' :: (MonadTrans t, MonadFresh var m, MonadEnv termF var (t m)) => thing -> t m thing
 instance (Traversable termF) => GetFresh termF var (Free termF var) where
     getFresh' t = fresh t
-instance (Traversable termF, GetFresh termF var t, Traversable f) => GetFresh termF var (f t) where
+instance (Traversable termF, GetFresh termF var t) => GetFresh termF var [t] where
     getFresh' t = T.mapM getFresh' t
 
 getFresh :: forall t v m thing. (Ord v, MonadFresh v m, GetFresh t v thing) => thing -> m thing
@@ -68,32 +68,49 @@ getFresh t = evalStateT (getFresh' t) (mempty :: Substitution t v)
 -- -------------
 -- * Unification
 -- -------------
+getUnifier :: (GetUnifier termF var t, Ord var) => t -> t -> Maybe (Substitution termF var)
+getUnifier t u = execStateT (getUnifierM t u) mempty
+
 unifies' :: forall termF v t. (Ord v, GetUnifier termF v t) => t -> t -> Bool
-unifies' s t = isJust (evalStateT (getUnifier s t) (mempty :: Substitution termF v))
+unifies' s t = isJust (getUnifier s t)
 
 class Functor termF => GetUnifier termF var t | t -> termF var
-    where getUnifier :: MonadEnv termF var m => t -> t -> m ()
+    where getUnifierM :: MonadEnv termF var m => t -> t -> m ()
 
 instance (Eq var, Unify f) => GetUnifier f var (Free f var) where
-  getUnifier t u = unify t u
-instance (GetUnifier termF var t, Eq (f ()), Functor f, Foldable f) => GetUnifier termF var (f t) where
-  getUnifier t u | fmap (const ()) t == fmap (const ()) u = zipWithM_ getUnifier (toList t) (toList u)
-                 | otherwise = fail "structure mismatch"
+  getUnifierM t u = unifyM t u
+instance (GetUnifier termF var t) => GetUnifier termF var [t] where
+  getUnifierM = getUnifierMdefault
+
+
+getUnifierMdefault :: (GetUnifier termF var t, MonadEnv termF var m, Functor f, Foldable f, Eq (f())) =>
+                     f t -> f t -> m ()
+getUnifierMdefault t u
+    | fmap (const ()) t == fmap (const ()) u = zipWithM_ getUnifierM (toList t) (toList u)
+    | otherwise = fail "structure mismatch"
 
 -- ------------
 -- * Matching
 -- ------------
-matches' :: forall termF v t. (Ord v, GetMatcher termF v t) => t -> t -> Bool
-matches' s t = isJust (evalStateT (getMatcher s t) (mempty :: Substitution termF v))
+getMatcher :: (GetMatcher termF var t, Ord var) => t -> t -> Maybe (Substitution termF var)
+getMatcher t u = execStateT (getMatcherM t u) mempty
+
+matches' :: (Ord v, GetMatcher termF v t) => t -> t -> Bool
+matches' s t = isJust (getMatcher s t)
 
 class Functor termF =>  GetMatcher termF var t | t -> termF var
-    where getMatcher :: MonadEnv termF var m => t -> t -> m ()
+    where getMatcherM :: MonadEnv termF var m => t -> t -> m ()
 
 instance (Eq var, Match f) => GetMatcher f var (Free f var) where
-  getMatcher t u = match t u
-instance (GetMatcher termF var t, Eq (f ()), Functor f, Foldable f) => GetMatcher termF var (f t) where
-  getMatcher t u | fmap (const ()) t == fmap (const ()) u = zipWithM_ getMatcher (toList t) (toList u)
-                 | otherwise = fail "structure mismatch"
+  getMatcherM t u = matchM t u
+instance (GetMatcher termF var t) => GetMatcher termF var [t] where
+  getMatcherM = getMatcherMdefault
+
+getMatcherMdefault :: (GetMatcher termF var t, MonadEnv termF var m, Functor f, Foldable f, Eq (f())) =>
+                     f t -> f t -> m ()
+getMatcherMdefault t u
+    | fmap (const ()) t == fmap (const ()) u = zipWithM_ getMatcherM (toList t) (toList u)
+    | otherwise = fail "structure mismatch"
 
 -- ----------------------------
 -- * Equivalence up to renaming
@@ -102,9 +119,7 @@ instance (GetMatcher termF var t, Eq (f ()), Functor f, Foldable f) => GetMatche
 equiv' :: forall termF var t.
          (Ord var, Enum var, Ord (termF (Free termF var)),
          GetUnifier termF var t, GetVars var t, GetFresh termF var t) => t -> t -> Bool
-equiv' t u = case execStateT (getUnifier t' u) mempty of
-              Just x -> isRenaming x
-              _   -> False
+equiv' t u = maybe False isRenaming (getUnifier t' u)
  where
      t' = getFresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
      freshVars = [toEnum i ..]

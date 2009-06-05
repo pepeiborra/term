@@ -14,10 +14,10 @@ newtype IOVar termF = IOVar (IOStableRef( Maybe (Free termF (IOVar termF)))) der
 
 
 unifiesIO :: (Unify t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> IO Bool
-unifiesIO t u = (unify t u >> return True) `catch` \_ -> return False
+unifiesIO t u = (unifyM t u >> return True) `catch` \_ -> return False
 
 matchesIO :: (Match t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> IO Bool
-matchesIO t u = (match t u >> return True) `catch` \_ -> return False
+matchesIO t u = (matchM t u >> return True) `catch` \_ -> return False
 
 instantiate :: (Traversable term,
                 MonadTrans t, MonadFresh (IOVar term) m, MonadEnv term (Either var (IOVar term)) (t m)) =>
