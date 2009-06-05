@@ -15,7 +15,7 @@ Flag transformers
    default: False
 
 Flag logict
-   default: true
+   default: True
 
 Library
   buildable: True

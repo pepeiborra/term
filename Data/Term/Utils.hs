@@ -11,6 +11,8 @@ import Control.Monad.State(StateT(..), MonadState, get, put, modify, evalStateT)
 #ifdef LOGICT
 import Control.Monad.Logic (MonadLogic, ifte)
 #endif
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Prelude hiding (mapM)
 
@@ -47,6 +49,11 @@ secondM f (x,y) = do { y' <- f y; return (x,y')}
 
 forEach :: [a] -> (a -> b) -> [b]
 forEach = flip map
+
+snub :: Ord a => [a] -> [a]
+snub = go Set.empty where
+  go _   []     = []
+  go acc (x:xx) = if x `Set.member` acc then go acc xx else x : go (Set.insert x acc) xx
 
 -- ------------------------
 -- Fixed points and similar

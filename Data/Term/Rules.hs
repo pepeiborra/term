@@ -20,11 +20,9 @@ module Data.Term.Rules
   (GetVars(..),
    GetUnifier(..), getUnifier, unifies', equiv', getUnifierMdefault,
    GetMatcher(..), getMatcher, matches', getMatcherMdefault,
-   GetFresh(..), getFresh, variant
+   GetFresh(..), getFresh, getVariant, getFreshMdefault
   ) where
 
-import Control.Monad
-import Control.Monad.Trans
 import Control.Monad.Free
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State (evalState, execStateT, evalStateT)
@@ -35,12 +33,13 @@ import Data.Foldable (Foldable, foldMap, toList)
 import Data.List ((\\))
 import Data.Maybe
 import Data.Monoid
-import qualified Data.Set as Set
+import Data.Traversable (Traversable)
+import qualified Data.Traversable as T
+
 import Data.Term
 import Data.Term.Var
 import Data.Term.IOVar
-import Data.Traversable (Traversable)
-import qualified Data.Traversable as T
+import Data.Term.Utils
 
 -- -----------
 -- * Variables
@@ -58,14 +57,17 @@ instance GetVars (IOVar t) (IOVar t) where getVars v = [v]
 -- ------------------------------------------
 
 class (Traversable termF) => GetFresh (termF :: * -> *) var thing | thing -> termF var where
-    getFresh' :: (MonadTrans t, MonadFresh var m, MonadEnv termF var (t m)) => thing -> t m thing
+    getFreshM :: (MonadFresh var m, MonadEnv termF var m) => thing -> m thing
 instance (Traversable termF) => GetFresh termF var (Free termF var) where
-    getFresh' t = fresh t
+    getFreshM t = fresh t
 instance (Traversable termF, GetFresh termF var t) => GetFresh termF var [t] where
-    getFresh' t = T.mapM getFresh' t
+    getFreshM = getFreshMdefault
+
+getFreshMdefault :: (Traversable t, GetFresh term v a, MonadFresh v m, MonadEnv term v m) => t a -> m (t a)
+getFreshMdefault = T.mapM getFreshM
 
 getFresh :: forall t v m thing. (Ord v, MonadFresh v m, GetFresh t v thing) => thing -> m thing
-getFresh t = evalStateT (getFresh' t) (mempty :: Substitution t v)
+getFresh t = evalStateT (getFreshM t) (mempty :: Substitution t v)
 
 getVariant :: (Enum v, GetFresh termF v t, GetVars v t') => t -> t' -> t
 getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ getVars t)
@@ -129,8 +131,3 @@ equiv' t u = maybe False isRenaming (getUnifier t' u)
      t' = getFresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
      freshVars = [toEnum i ..]
      i = maximum (0 : map fromEnum (getVars t)) + 1
-
--- -----------
--- Combinators
--- -----------
-snub = Set.toList . Set.fromList

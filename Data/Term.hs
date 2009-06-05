@@ -17,7 +17,6 @@ import Control.Applicative
 import Control.Monad.Free (Free(..), foldFree, evalFree, isPure)
 import Control.Monad.Free.Zip
 import Control.Monad (liftM, join, MonadPlus(..), msum)
-import Control.Monad.Identity (Identity(..))
 import Control.Monad.Trans (lift)
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
@@ -212,7 +211,6 @@ equiv :: forall termF var.
          (Ord var, Enum var, Ord (termF (Term termF var)), Unify termF) => Term termF var -> Term termF var -> Bool
 equiv t u = maybe False isRenaming (unify t' u)
  where
---     t' = evalState evalStateT (mempty :: Substitution termF var, freshVars)
      t' = fresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
      freshVars = [toEnum i ..]
      i = maximum (0 : map fromEnum (vars t)) + 1
@@ -245,13 +243,24 @@ find' :: MonadEnv termF v m => Term termF v -> m(Term termF v)
 find' (Pure t) = find t
 find' t        = return t
 
-instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var) m) where
+instance (Monad m, Functor t, Ord v) => MonadEnv t v (StateT (Substitution t v) m) where
   varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
   lookupVar t  = get >>= \s -> return(lookupSubst t s)
 
-instance (Monad m, Functor termF, Ord var) => MonadEnv termF var (StateT (Substitution termF var, a) m) where
+instance (Monad m, Functor t, Ord v) => MonadEnv t v (StateT (Substitution t v, a) m) where
   varBind v t = withFst (varBind v t)
   lookupVar t = withFst (lookupVar t)
+
+#ifndef TRANSFORMERS
+instance (Functor t, Ord v) => MonadEnv t v (State (Substitution t v)) where
+  varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
+  lookupVar t  = get >>= \s -> return(lookupSubst t s)
+
+instance (Functor t, Ord v) => MonadEnv t v (State (Substitution t v, a)) where
+  varBind v t = do {(e,a) <- get; put (liftSubst (Map.insert v t) e,a)}
+  lookupVar t  = get >>= \(s,_) -> return(lookupSubst t s)
+
+#endif
 
 -- ------------------------------------------
 -- MonadFresh: Variants of terms and clauses
@@ -264,11 +273,11 @@ instance Monad m => MonadFresh v (StateT (a,[v]) m) where freshVar = withSnd fre
 
 #ifndef TRANSFORMERS
 instance MonadFresh v (State [v])     where freshVar = do { x:xx <- get; put xx; return x}
---instance MonadFresh v (State (a,[v])) where freshVar = withSnd freshVar
+instance MonadFresh v (State (a,[v])) where freshVar = do {(s,x:xx) <- get; put (s,xx); return x}
 #endif
 
 fresh ::  (Traversable t, MonadEnv t var m, MonadFresh var m) =>
-         Term termF var -> t m (Term termF var)
+         Term t var -> m (Term t var)
 fresh = go where
   go  = liftM join . T.mapM f
   f v = do
@@ -294,7 +303,7 @@ variant u t = fresh u `evalStateT` (mempty :: Substitution t v) `evalState` ([to
 -- ------------------------------
 -- Liftings of monadic operations
 -- ------------------------------
-instance (Monoid w, Functor termF, MonadEnv termF var m) => MonadEnv termF var (WriterT w m) where
+instance (Monoid w, Functor t, MonadEnv t var m) => MonadEnv t var (WriterT w m) where
   varBind = (lift.) . varBind
   lookupVar = lift . lookupVar
 
@@ -302,15 +311,15 @@ instance MonadEnv t v m => MonadEnv t v (ListT m) where
   varBind   = (lift.) . varBind
   lookupVar = lift    . lookupVar
 
-instance (Functor termF, MonadEnv termF var m) => MonadEnv termF var (StateT s m) where
+instance (Functor t, MonadEnv t var m) => MonadEnv t var (StateT s m) where
   varBind = (lift.) . varBind
   lookupVar = lift . lookupVar
 
-instance (Functor termF, MonadEnv termF var m) => MonadEnv termF var (ReaderT r m) where
+instance (Functor t, MonadEnv t var m) => MonadEnv t var (ReaderT r m) where
   varBind = (lift.) . varBind
   lookupVar = lift . lookupVar
 
-instance (Monoid w, Functor termF, MonadEnv termF var m) => MonadEnv termF var (RWST r w s m) where
+instance (Monoid w, Functor t, MonadEnv t var m) => MonadEnv t var (RWST r w s m) where
   varBind = (lift.) . varBind
   lookupVar = lift . lookupVar
 
