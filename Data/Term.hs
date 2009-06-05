@@ -10,7 +10,7 @@ module Data.Term (
      Match(..), Unify(..), unify, match, matches, unifies, equiv,
      Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
      MonadEnv(..), find',
-     MonadFresh(..), fresh, fresh'
+     MonadFresh(..), fresh, fresh', variant
      ) where
 
 import Control.Applicative
@@ -33,6 +33,7 @@ import Control.Monad.RWS(RWST)
 import Control.Monad.Writer(WriterT)
 #endif
 import Data.Foldable (Foldable, toList)
+import Data.List ((\\))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
@@ -286,6 +287,9 @@ fresh' = go where
             Nothing -> do {v' <- lift freshVar; varBind (Left v) (return $ Right v'); return (return v')}
             Just (Pure (Right v')) -> return (Pure v')
             _ -> error "impossible: fresh'"
+
+variant :: forall v t t'. (Ord v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
+variant u t = fresh u `evalStateT` (mempty :: Substitution t v) `evalState` ([toEnum 0..] \\ vars t)
 
 -- ------------------------------
 -- Liftings of monadic operations

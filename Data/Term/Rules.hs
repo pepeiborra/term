@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, UndecidableInstances, TypeSynonymInstances #-}
+{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE KindSignatures #-}
@@ -19,7 +20,7 @@ module Data.Term.Rules
   (GetVars(..),
    GetUnifier(..), getUnifier, unifies', equiv', getUnifierMdefault,
    GetMatcher(..), getMatcher, matches', getMatcherMdefault,
-   GetFresh(..), getFresh
+   GetFresh(..), getFresh, variant
   ) where
 
 import Control.Monad
@@ -31,6 +32,7 @@ import Control.Monad.Trans.State (evalState, execStateT, evalStateT)
 import Control.Monad.State (evalState, execStateT, evalStateT)
 #endif
 import Data.Foldable (Foldable, foldMap, toList)
+import Data.List ((\\))
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Set as Set
@@ -64,6 +66,9 @@ instance (Traversable termF, GetFresh termF var t) => GetFresh termF var [t] whe
 
 getFresh :: forall t v m thing. (Ord v, MonadFresh v m, GetFresh t v thing) => thing -> m thing
 getFresh t = evalStateT (getFresh' t) (mempty :: Substitution t v)
+
+getVariant :: (Enum v, GetFresh termF v t, GetVars v t') => t -> t' -> t
+getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ getVars t)
 
 -- -------------
 -- * Unification
