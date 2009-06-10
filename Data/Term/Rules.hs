@@ -146,6 +146,9 @@ getMatcherMdefault t u
 -- ----------------------------
 -- * Equivalence up to renaming
 -- ----------------------------
+instance (Ord v, Enum v, Ord (Term t v), GetUnifier t v thing, GetVars v thing, GetFresh t v thing) =>
+         Eq (EqModulo thing) where
+           EqModulo t1 == EqModulo t2 = t1 `equiv'` t2
 
 equiv' :: forall termF var t.
          (Ord var, Enum var, Ord (Term termF var),

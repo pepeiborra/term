@@ -261,6 +261,9 @@ equiv t u = maybe False isRenaming (unify t' u)
      freshVars = [toEnum i ..]
      i = maximum (0 : map fromEnum (vars t)) + 1
 
+newtype EqModulo a = EqModulo a
+instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where EqModulo t1 == EqModulo t2 = t1 `equiv` t2
+
 -- ------------------------------------
 -- Environments: handling substitutions
 -- ------------------------------------
