@@ -168,8 +168,8 @@ restrictTo vv = liftSubst f where
 isEmpty :: Substitution id v -> Bool
 isEmpty (Subst m) = Map.null m
 
-fromList :: Ord v => [(v,Term termF v)] -> Substitution termF v
-fromList = Subst . Map.fromList
+fromListSubst :: Ord v => [(v,Term termF v)] -> Substitution termF v
+fromListSubst = Subst . Map.fromList
 
 zonkTerm :: (Functor termF, Ord var) => Substitution termF var -> (var -> var') -> Term termF var -> Term termF var'
 zonkTerm subst fv = (>>= f) where

@@ -27,7 +27,7 @@ getInst :: (Traversable t, Ord var,  Eq (Free t (IOVar t))) =>
            Substitution t (Either var (IOVar t)) -> IO (Substitution t var)
 getInst (Subst s) = do
     map0' <- P.mapM (secondM (zonkM (\v -> let Just v' = lookup (Pure v) inversemap in return v'))) map0
-    return $ fromList map0'
+    return $ fromListSubst map0'
  where
     map0       = map (fromLeft *** fmap fromRight) (Map.toList s)
     inversemap = [(b,a) | (a,b) <- map0]
