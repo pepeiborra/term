@@ -95,6 +95,16 @@ updateAt' pos t f = runStateT (go pos t) t where
                                where g j st = if i==j then go ii st else return st
  go _      _          = fail "updateAt: invalid position given"
 
+-- -----
+-- * Ids
+-- -----
+class Functor f => HasId f id | f -> id where getId :: f a -> Maybe id
+class MapId f where mapId :: (id -> id') -> f id a -> f id' a
+
+rootSymbol :: HasId f id => Term f v -> Maybe id
+rootSymbol (Impure t) = getId t
+rootSymbol _          = Nothing
+
 -- -------------
 -- Substitutions
 -- -------------
