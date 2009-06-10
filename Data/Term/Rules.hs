@@ -36,6 +36,10 @@ import Data.Maybe
 import Data.Monoid
 import Data.Traversable (Traversable)
 import qualified Data.Traversable as T
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Data.Term
 import Data.Term.Var
@@ -95,6 +99,51 @@ getFresh t = evalStateT (getFreshM t) (mempty :: Substitution t v)
 
 getVariant :: (Enum v, GetFresh termF v t, GetVars v t') => t -> t' -> t
 getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ getVars t)
+
+-- ---------------------
+-- * Signatures
+-- ---------------------
+data Signature id = Sig {constructorSymbols, definedSymbols :: Set id
+                        ,arity :: Map id Int}
+allSymbols :: Ord id => Signature id -> Set id
+allSymbols s = definedSymbols s `mappend` constructorSymbols s
+
+class HasSignature l id | l -> id where getSignature :: l -> Signature id
+instance HasSignature (Signature id) id where getSignature = id
+
+instance Ord id => Monoid (Signature id) where
+    mempty  = Sig mempty mempty mempty
+    mappend (Sig c1 s1 a1) (Sig c2 s2 a2) = Sig (mappend c1 c2) (mappend s1 s2) (mappend a1 a2)
+
+instance (Foldable t, Ord id, HasId t id) => HasSignature [Rule t v] id where
+  getSignature rules =
+      Sig{arity= Map.fromList [(f,length (properSubterms t))
+                                  | l :-> r <- rules
+                                  , t <- concatMap subterms [l,r]
+                                  , Just f <- [rootSymbol t]]
+         , definedSymbols     = Set.fromList dd
+         , constructorSymbols = Set.fromList $
+                                snub[root | l :-> r <- rules, t <- subterms r ++ properSubterms l, Just root <- [rootSymbol t]] \\ dd}
+    where dd = snub [ root | l :-> _ <- rules, let Just root = rootSymbol l]
+
+instance (Foldable t, Ord id, HasId t id) => HasSignature (Set (Rule t v)) id where
+  getSignature = getSignature . toList
+
+getDefinedSymbols, getConstructorSymbols, getAllSymbols :: (Ord id, HasSignature l id) => l -> Set id
+getDefinedSymbols     = definedSymbols     . getSignature
+getConstructorSymbols = constructorSymbols . getSignature
+getAllSymbols         = allSymbols . getSignature
+getArity :: (Ord id, HasSignature sig id) => sig -> id -> Int
+getArity l f = fromMaybe (error $ "getArity: symbol not in signature")
+                                            (Map.lookup f arity)
+  where  Sig{arity=arity} = getSignature l
+
+isDefined, isConstructor :: (Ord id, HasId t id, Foldable t, HasSignature sig id) => sig -> Term t v -> Bool
+isConstructor sig t = (`Set.member` getConstructorSymbols sig) `all` collectIds t
+isDefined = (not.) . isConstructor
+
+collectIds :: (Foldable t, HasId t id) => Term t v -> [id]
+collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toList t))
 
 -- -------------
 -- * Unification
