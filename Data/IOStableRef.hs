@@ -29,7 +29,6 @@ import Data.Unique
 data IOStableRef a
   = IOStableRef !Unique !(IORef a)
 
-
 instance Eq (IOStableRef a) where
   IOStableRef u1 _ == IOStableRef u2 _  = u1 == u2
 
@@ -39,6 +38,8 @@ instance Ord (IOStableRef a) where
   IOStableRef u1 _ >  IOStableRef u2 _  = u1 >  u2
   IOStableRef u1 _ >= IOStableRef u2 _  = u1 >= u2
   compare (IOStableRef u1 _) (IOStableRef u2 _) = compare u1 u2
+
+instance Show (IOStableRef a) where show (IOStableRef u _) = 'v' : show (hashUnique u)
 
 hashIOStableRef :: IOStableRef a -> Int
 hashIOStableRef (IOStableRef u _)
