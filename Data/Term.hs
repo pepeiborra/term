@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, TypeSynonymInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE CPP #-}
 
 module Data.Term (
@@ -14,7 +15,7 @@ module Data.Term (
      ) where
 
 import Control.Applicative
-import Control.Monad.Free (Free(..), foldFree, evalFree, isPure)
+import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, evalFree, isPure)
 import Control.Monad.Free.Zip
 import Control.Monad (liftM, join, MonadPlus(..), msum)
 import Control.Monad.Trans (lift)
@@ -31,7 +32,7 @@ import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWST)
 import Control.Monad.Writer(WriterT)
 #endif
-import Data.Foldable (Foldable, toList)
+import Data.Foldable (Foldable(..), toList)
 import Data.List ((\\))
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -46,18 +47,37 @@ import Prelude as P hiding (mapM)
 -- ------
 -- Terms
 -- ------
-
 type Term termF var = Free termF var
+foldTerm :: Functor t => (a -> b) -> (t b -> b) -> Term t a -> b
+foldTerm = foldFree
+foldTermM :: (Traversable t, Monad m) => (a -> m b) -> (t b -> m b) -> Term t a -> m b
+foldTermM = foldFreeM
 
-subterms :: Foldable termF => Term termF var -> [Term termF var]
-subterms (Impure t) = Impure t : P.concat (subterms <$> toList t)
-subterms _ = []
+mapTerm :: (Functor t, Functor t') => (forall a. t a -> t' a) -> Term t a -> Term t' a
+mapTerm = mapFree
+
+evalTerm :: (a -> b) -> (f (Free f a) -> b) -> Free f a -> b
+evalTerm = evalFree
+
+subterms, properSubterms, directSubterms :: Foldable termF => Term termF var -> [Term termF var]
+subterms t = t : properSubterms t
+directSubterms (Impure t) = toList t
+directSubterms _          = []
+properSubterms (Impure t) =  P.concat (subterms <$> toList t)
+properSubterms _          = []
+
+collect :: (Foldable f, Functor f) => (Term f v -> Bool) -> Term f v -> [Term f v]
+collect pred t = [ u | u <- subterms t, pred u]
 
 vars :: (Functor termF, Foldable termF) => Term termF var -> [var]
 vars = toList
 
 isVar :: Term termF var -> Bool
 isVar = isPure
+
+isLinear :: (Ord v, Foldable t, Functor t) => Term t v -> Bool
+isLinear t = length(snub varst) == length varst where
+    varst = vars t
 
 -- ----------
 -- Positions
