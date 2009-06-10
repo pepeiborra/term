@@ -32,6 +32,10 @@ instance Eq id => Unify (TermF id) where
       (Impure t, Impure s) -> zipTermM_ unifyF t s
    zipTermM_ f (Term f1 tt1) (Term f2 tt2) | f1 == f2 = zipWithM_ f tt1 tt2
                                            | otherwise = fail "structure mismatch"
+
+instance HasId (TermF id) id where getId (Term id _) = Just id
+instance MapId TermF where mapId f (Term id tt) = Term (f id) tt
+
 -- Functor boilerplate
 -- --------------------
 instance Functor (TermF id) where

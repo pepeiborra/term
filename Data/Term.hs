@@ -95,6 +95,42 @@ updateAt' pos t f = runStateT (go pos t) t where
                                where g j st = if i==j then go ii st else return st
  go _      _          = fail "updateAt: invalid position given"
 
+newtype WithNote note a = Note (note, a) deriving (Show)
+newtype WithNote1 note f a = Note1 (note, f a) deriving (Show)
+
+instance Eq a => Eq (WithNote n a) where Note (_,a) == Note (_,b) = a == b
+--instance (Functor f, Eq (Free f a)) => Eq (Free (WithNote1 n f) a) where
+--    a == b = f a == f b  where f = mapTerm (\(Note1 (_,x)) -> x)
+
+instance Eq (f a) => Eq ((WithNote1 n f) a) where Note1 (_,x) == Note1 (_,y) = x == y
+
+instance Ord a => Ord (WithNote n a) where Note (_,a) `compare` Note (_,b) = compare a b
+--instance (Functor f, Ord (Free f a)) => Ord (Free (WithNote1 n f) a) where
+--    compare a b = f a `compare` f b  where f = mapTerm (\(Note1 (_,x)) -> x)
+instance Ord (f a) => Ord ((WithNote1 n f) a) where Note1 (_,x) `compare` Note1 (_,y) = compare x y
+
+instance Functor f  => Functor (WithNote1 note f)  where fmap f (Note1 (p, fx))   = Note1 (p, fmap f fx)
+instance Foldable f => Foldable (WithNote1 note f) where foldMap f (Note1 (_p,fx)) = foldMap f fx
+instance Traversable f => Traversable (WithNote1 note f) where traverse f (Note1 (p, fx)) = (Note1 . (,) p) <$> traverse f fx
+instance Functor (WithNote n) where fmap f (Note (n,a)) = Note (n, f a)
+instance Foldable (WithNote n) where foldMap f (Note (_,a)) = f a
+instance Traversable (WithNote n) where traverse f (Note (n,a)) = (\a' -> Note (n,a')) <$> f a
+
+note :: Term (WithNote1 n t) (WithNote n a) -> n
+note (Impure (Note1 (n,_))) = n
+note (Pure (Note (n,_)))    = n
+
+noteV :: WithNote n a -> n
+noteV (Note (n,_)) = n
+
+dropNote :: Functor t => Free (WithNote1 n t) (WithNote n a) -> Free t a
+dropNote = foldTerm (\(Note (_,v)) -> return v) (\(Note1 (_,x)) -> Impure x)
+
+annotateWithPos :: Traversable f => Term f v -> Term (WithNote1 Position f) (WithNote Position v)
+annotateWithPos = go [] where
+     go pos = evalFree (\v -> return $ Note (pos,v))
+                       (\t -> Impure (Note1 (pos, unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] t))) -- TODO Remove the append at tail
+
 -- -----
 -- * Ids
 -- -----
