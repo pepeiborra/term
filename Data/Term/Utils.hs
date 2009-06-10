@@ -11,7 +11,6 @@ import Control.Monad.State(StateT(..), MonadState, get, put, modify, evalStateT)
 #ifdef LOGICT
 import Control.Monad.Logic (MonadLogic, ifte)
 #endif
-import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Prelude hiding (mapM)
@@ -92,6 +91,6 @@ with gets puts run m = do
       return res
 
 withFst :: (MonadState (s, b) (t1 m), MonadTrans t1, Monad m) => StateT s m a -> t1 m a
-withFst = with fst (\x' (x,y) -> (x',y)) runStateT
+withFst = with fst (\x' (_,y) -> (x',y)) runStateT
 withSnd :: (MonadState (b, s) (t1 m), MonadTrans t1, Monad m) => StateT s m a -> t1 m a
-withSnd = with snd (\y' (x,y) -> (x,y')) runStateT
+withSnd = with snd (\y' (x,_) -> (x,y')) runStateT
