@@ -45,7 +45,7 @@ reduce rr t = fixMP (rewriteStep rr) t `evalStateT` freshvars
 #else
 -- | Normal forms, starting from leftmost outermost
 -- Assumes no extra variables in the rhs are present
-reduce :: (Ord v, Enum v, Eq (Free t v), Match t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v)
+reduce :: (Ord v, Enum v, Eq (Term t v), Match t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v)
 reduce rr t = fixM_Eq (rewriteStep rr) t `evalStateT` freshvars
   where freshvars = [toEnum 0 ..] \\ vars t
 #endif

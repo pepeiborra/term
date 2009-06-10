@@ -187,7 +187,7 @@ zonkTermM subst fv = liftM join . mapM f where
 zonkSubst :: (Functor termF, Ord var) => Substitution termF var -> Substitution termF var
 zonkSubst s = liftSubst (Map.map (zonkTerm s id)) s
 
-isRenaming :: (Functor termF, Ord var, Ord (termF (Term termF var))) => Substitution termF var -> Bool
+isRenaming :: (Functor termF, Ord var, Ord (Term termF var)) => Substitution termF var -> Bool
 isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKeysMonotonic return subst)
   where
 --    isBijective :: Ord k => Map.Map k k -> Bool
@@ -254,7 +254,7 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
 -- --------------------------
 
 equiv :: forall termF var.
-         (Ord var, Enum var, Ord (termF (Term termF var)), Unify termF) => Term termF var -> Term termF var -> Bool
+         (Ord var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
 equiv t u = maybe False isRenaming (unify t' u)
  where
      t' = fresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars

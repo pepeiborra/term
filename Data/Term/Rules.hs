@@ -69,7 +69,7 @@ swapRule (l :-> r) = r :-> l
 -- * Variables
 -- -----------
 class Ord var => GetVars var t | t -> var where getVars :: t -> [var]
-instance (Functor termF, Foldable termF, Ord var) => GetVars var (Free termF var) where getVars = snub . toList
+instance (Functor termF, Foldable termF, Ord var) => GetVars var (Term termF var) where getVars = snub . toList
 instance (GetVars var t, Foldable f) => GetVars var (f t) where getVars = snub . foldMap getVars
 --instance (GetVars t var, Foldable f, Foldable g) => GetVars (g(f t)) var where getVars = (foldMap.foldMap) getVars
 
@@ -82,7 +82,7 @@ instance GetVars (IOVar t) (IOVar t) where getVars v = [v]
 
 class (Traversable termF) => GetFresh (termF :: * -> *) var thing | thing -> termF var where
     getFreshM :: (MonadFresh var m, MonadEnv termF var m) => thing -> m thing
-instance (Traversable termF) => GetFresh termF var (Free termF var) where
+instance (Traversable termF) => GetFresh termF var (Term termF var) where
     getFreshM t = fresh t
 instance (Traversable termF, GetFresh termF var t) => GetFresh termF var [t] where
     getFreshM = getFreshMdefault
@@ -108,7 +108,7 @@ unifies' s t = isJust (getUnifier s t)
 class Functor termF => GetUnifier termF var t | t -> termF var
     where getUnifierM :: MonadEnv termF var m => t -> t -> m ()
 
-instance (Eq var, Unify f) => GetUnifier f var (Free f var) where
+instance (Eq var, Unify f) => GetUnifier f var (Term f var) where
   getUnifierM t u = unifyM t u
 instance (GetUnifier termF var t) => GetUnifier termF var [t] where
   getUnifierM = getUnifierMdefault
@@ -132,7 +132,7 @@ matches' s t = isJust (getMatcher s t)
 class Functor termF =>  GetMatcher termF var t | t -> termF var
     where getMatcherM :: MonadEnv termF var m => t -> t -> m ()
 
-instance (Eq var, Match f) => GetMatcher f var (Free f var) where
+instance (Eq var, Match f) => GetMatcher f var (Term f var) where
   getMatcherM t u = matchM t u
 instance (GetMatcher termF var t) => GetMatcher termF var [t] where
   getMatcherM = getMatcherMdefault
@@ -148,7 +148,7 @@ getMatcherMdefault t u
 -- ----------------------------
 
 equiv' :: forall termF var t.
-         (Ord var, Enum var, Ord (termF (Free termF var)),
+         (Ord var, Enum var, Ord (Term termF var),
          GetUnifier termF var t, GetVars var t, GetFresh termF var t) => t -> t -> Bool
 equiv' t u = maybe False isRenaming (getUnifier t' u)
  where
