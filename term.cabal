@@ -19,7 +19,7 @@ Flag logict
 
 Library
   buildable: True
-  build-depends: base, containers, control-monad-free
+  build-depends: base, containers, pretty, control-monad-free
   if flag(transformers)
      build-depends: transformers
      cpp-options: -DTRANSFORMERS
@@ -43,6 +43,7 @@ Library
     Data.Term.IOVar,
     Data.Term.Rewriting,
     Data.Term.Narrowing
+    Data.Term.Ppr
 
   other-modules:
     Data.Term.Utils,
