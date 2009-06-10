@@ -14,7 +14,6 @@ module Data.Term.Narrowing (
 ) where
 
 import Control.Arrow
-import Control.Monad.Free
 #ifdef LOGICT
 import Control.Monad.Logic
 #endif
@@ -31,7 +30,6 @@ import qualified Data.Traversable as T
 
 import Data.Term
 import Data.Term.Rules
-import Data.Term.Rewriting
 import Data.Term.Utils
 
 

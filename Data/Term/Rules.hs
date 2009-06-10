@@ -17,7 +17,11 @@
     operations which work with sets of terms.
 -}
 module Data.Term.Rules
-  (GetVars(..),
+  (RuleF(..), Rule, HasRules(..), swapRule, IsTRS(..),
+   Signature(..), allSymbols, HasSignature(..),
+   getArity, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
+   isConstructor, isDefined, collectIds,
+   GetVars(..),
    GetUnifier(..), getUnifier, unifies', equiv', getUnifierMdefault,
    GetMatcher(..), getMatcher, matches', getMatcherMdefault,
    GetFresh(..), getFresh, getVariant, getFreshMdefault

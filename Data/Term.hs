@@ -6,12 +6,16 @@
 {-# LANGUAGE CPP #-}
 
 module Data.Term (
-     Term, subterms, positions, isVar, vars, someSubterm,
+     Term, Free(..), foldTerm, foldTermM, mapTerm, evalTerm,
+     WithNote(..), WithNote1(..), note, dropNote, noteV,
+     subterms, properSubterms, directSubterms, someSubterm, collect,
+     positions, annotateWithPos, isVar, vars, isLinear,
+     HasId(..), MapId(..), rootSymbol,
      Position, (!), updateAt, updateAt',
-     Match(..), Unify(..), unify, match, matches, unifies, equiv,
-     Substitution(..), fromList, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
+     Match(..), Unify(..), unify, match, matches, unifies, equiv, EqModulo(..),
+     Substitution(..), fromListSubst, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
      MonadEnv(..), find',
-     MonadFresh(..), fresh, fresh', variant
+     MonadFresh(..), fresh, freshWith, variant
      ) where
 
 import Control.Applicative
