@@ -23,6 +23,7 @@ module Data.Term.Rules
    GetFresh(..), getFresh, getVariant, getFreshMdefault
   ) where
 
+import Control.Applicative
 import Control.Monad.Free
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State (evalState, execStateT, evalStateT)
@@ -40,6 +41,29 @@ import Data.Term
 import Data.Term.Var
 import Data.Term.IOVar
 import Data.Term.Utils
+
+
+-- ----------------
+-- * Concrete rules
+-- ----------------
+infix 1 :->
+data RuleF a = (:->) {lhs,rhs::a} deriving (Eq, Ord, Show)
+instance Functor RuleF where fmap f (l :-> r) = f l :-> f r
+instance Foldable RuleF where foldMap f (l :-> r) = f l `mappend` f r
+instance Traversable RuleF where traverse f (l :-> r) = (:->) <$> f l <*> f r
+instance Traversable t => GetFresh t v (Rule t v) where getFreshM = getFreshMdefault
+instance (Eq v, Traversable t, Eq (t())) => GetUnifier t v (Rule t v) where getUnifierM = getUnifierMdefault
+instance (Eq v, Traversable t, Eq (t())) => GetMatcher t v (Rule t v) where getMatcherM = getMatcherMdefault
+
+type Rule t v = RuleF (Term t v)
+
+class HasRules t v trs | trs -> t v where rules :: trs -> [Rule t v]
+class HasRules t v trs => IsTRS t v trs where tRS :: [Rule t v] -> trs
+instance HasRules t v [Rule t v] where rules = id
+instance IsTRS    t v [Rule t v] where tRS   = id
+
+swapRule :: RuleF a -> RuleF a
+swapRule (l :-> r) = r :-> l
 
 -- -----------
 -- * Variables

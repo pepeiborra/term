@@ -1,35 +1,16 @@
 {-# LANGUAGE CPP #-}
 module Data.Term.Rewriting where
 
-import Control.Applicative
-import Control.Monad.Free
 #ifdef LOGICT
 import Control.Monad.Logic
 #endif
 import Control.Monad.State
 import Data.List
-import Data.Monoid
 import Data.Foldable as F
-import Data.Traversable (traverse, Traversable)
-import qualified Data.Traversable as T
 
 import Data.Term
 import Data.Term.Rules
 import Data.Term.Utils
-
--- ----------------
--- * Concrete rules
--- ----------------
-
-data RuleF a = a :-> a deriving (Eq, Ord, Show)
-instance Functor RuleF where fmap f (l :-> r) = f l :-> f r
-instance Foldable RuleF where foldMap f (l :-> r) = f l `mappend` f r
-instance Traversable RuleF where traverse f (l :-> r) = (:->) <$> f l <*> f r
-instance Traversable t => GetFresh t v (Rule t v) where getFreshM = getFreshMdefault
-instance (Eq v, Traversable t, Eq (t())) => GetUnifier t v (Rule t v) where getUnifierM = getUnifierMdefault
-instance (Eq v, Traversable t, Eq (t())) => GetMatcher t v (Rule t v) where getMatcherM = getMatcherMdefault
-
-type Rule t v = RuleF (Free t v)
 
 ----------------------------------------
 -- * Rewriting
