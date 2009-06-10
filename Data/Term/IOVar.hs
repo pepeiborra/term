@@ -21,7 +21,7 @@ matchesIO t u = (matchM t u >> return True) `catch` \_ -> return False
 instantiate :: (Traversable term,
                 MonadFresh (IOVar term) m, MonadEnv term (Either var (IOVar term)) m) =>
                Free term var -> m (Free term (IOVar term))
-instantiate = fresh'
+instantiate = freshWith (flip const)
 
 getInst :: (Traversable t, Ord var,  Eq (Free t (IOVar t))) =>
            Substitution t (Either var (IOVar t)) -> IO (Substitution t var)

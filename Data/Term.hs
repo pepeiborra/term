@@ -332,14 +332,14 @@ fresh = go where
             Nothing -> do {v' <- freshVar; varBind v (return v'); return (return v')}
             Just v' -> return v'
 
-fresh' ::  (Traversable t, MonadEnv t (Either var var') m, MonadFresh var' m) =>
-          Term t var -> m (Term t var')
-fresh' = go where
+freshWith :: (Traversable t, MonadEnv t (Either var var') m, MonadFresh var' m) =>
+               (var -> var' -> var') -> Term t var -> m (Term t var')
+freshWith fv = go where
   go  = liftM join . T.mapM f
   f v = do
           mb_v' <- lookupVar (Left v)
           case mb_v' of
-            Nothing -> do {v' <- freshVar; varBind (Left v) (return $ Right v'); return (return v')}
+            Nothing -> do {v' <- fv v `liftM` freshVar; varBind (Left v) (return $ Right v'); return (return v')}
             Just (Pure (Right v')) -> return (Pure v')
             _ -> error "impossible: fresh'"
 
