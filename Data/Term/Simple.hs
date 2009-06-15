@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
 import Control.Monad.Free

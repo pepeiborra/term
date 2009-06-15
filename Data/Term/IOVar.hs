@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverlappingInstances, UndecidableInstances, FlexibleContexts #-}
 module Data.Term.IOVar where
 
