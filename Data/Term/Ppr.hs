@@ -53,4 +53,7 @@ instance Ppr a => Ppr (TermF String a) where
 instance Ppr a => Ppr (RuleF a) where
     ppr (l :-> r) = ppr l <+> text "->" <+> ppr r
 
+instance (Ppr var, Ppr (Free termF var)) => Ppr (Substitution termF var) where
+    ppr = braces . hcat . punctuate comma . map (\(v,t) -> ppr v <+> equals <+> ppr t) . Map.toList . unSubst
+
 instance Ppr (IOVar t) where ppr = text . show
