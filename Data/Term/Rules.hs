@@ -109,6 +109,7 @@ getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ getVars t)
 -- ---------------------
 data Signature id = Sig {constructorSymbols, definedSymbols :: Set id
                         ,arity :: Map id Int}
+   deriving (Eq, Ord, Show)
 allSymbols :: Ord id => Signature id -> Set id
 allSymbols s = definedSymbols s `mappend` constructorSymbols s
 
@@ -120,15 +121,15 @@ instance Ord id => Monoid (Signature id) where
     mappend (Sig c1 s1 a1) (Sig c2 s2 a2) = Sig (mappend c1 c2) (mappend s1 s2) (mappend a1 a2)
 
 instance (Foldable t, Ord id, HasId t id) => HasSignature [Rule t v] id where
-  getSignature rules =
-      Sig{arity= Map.fromList [(f,length (properSubterms t))
+  getSignature rules = Sig{ arity              = arity
+                          , definedSymbols     = dd
+                          , constructorSymbols = Map.keysSet arity `Set.difference` dd
+                          }
+    where dd = Set.fromList [ root | l :-> _ <- rules, let Just root = rootSymbol l]
+          arity =  Map.fromList [(f,length (directSubterms t))
                                   | l :-> r <- rules
                                   , t <- concatMap subterms [l,r]
                                   , Just f <- [rootSymbol t]]
-         , definedSymbols     = Set.fromList dd
-         , constructorSymbols = Set.fromList $
-                                snub[root | l :-> r <- rules, t <- subterms r ++ properSubterms l, Just root <- [rootSymbol t]] \\ dd}
-    where dd = snub [ root | l :-> _ <- rules, let Just root = rootSymbol l]
 
 instance (Foldable t, Ord id, HasId t id) => HasSignature (Set (Rule t v)) id where
   getSignature = getSignature . toList
