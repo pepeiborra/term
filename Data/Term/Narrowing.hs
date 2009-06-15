@@ -28,10 +28,12 @@ import Data.Monoid
 import Data.Traversable (Traversable)
 import qualified Data.Traversable as T
 
+import Data.Foldable (toList)
 import Data.Term
 import Data.Term.Rules
 import Data.Term.Utils
-
+import Data.Term.Ppr
+import Text.PrettyPrint
 
 -- | Rigid Normal Form
 isRNF :: (Ord v, Enum v, Unify t) => [Rule t v] -> Term t v -> Bool
@@ -42,6 +44,8 @@ isRNF rr = null . narrow1 rr
 -- -----------
 type Context t v = Term t (Either Hole v)
 data Hole        = Hole deriving (Eq, Ord, Show)
+
+instance Ppr Hole where ppr _ = text "?h"
 
 instance Functor t => Monoid (Context t v) where
  mempty = return (Left Hole)
