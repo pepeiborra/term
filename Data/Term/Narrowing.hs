@@ -57,11 +57,12 @@ fill ct t = ct >>= f
 
 (|>) = fill
 
--- | Returns a list of subterms and the corresponding contexts
+-- | Returns one layer of contexts.
+--   That is, a list of direct subterms and the corresponding contexts
 --   | forall subterm ctx . (subterm, ctx) <- contexts t ==> ctx |> subterm = t
 contexts :: Traversable t => Term t v -> [(Term t v, Context t v, Position)]
 contexts t = [ (fmap fromRight t_i, u, [i])
-             | i <- [1..size t]
+             | i <- [1..length (directSubterms t)]
              , (u, t_i) <- updateAt' [i] (fmap Right t) (const mempty) ]
   where fromRight (Right x) = x
         fromRight _ = error "contexts: the impossible happened"
