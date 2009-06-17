@@ -65,6 +65,8 @@ instance (Eq v, Traversable t, Eq (t())) => GetMatcher t v (Rule t v) where getM
 
 type Rule t v = RuleF (Term t v)
 
+{-# RULES "rules/tRS" forall x. tRS (rules x) = x #-}
+
 class HasRules t v trs | trs -> t v where rules :: trs -> [Rule t v]
 class HasRules t v trs => IsTRS t v trs where tRS :: [Rule t v] -> trs
 instance HasRules t v [Rule t v] where rules = id
