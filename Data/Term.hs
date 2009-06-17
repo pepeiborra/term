@@ -48,9 +48,9 @@ import Data.Traversable as T
 import Data.Term.Utils
 import Prelude as P hiding (mapM)
 
--- ------
--- Terms
--- ------
+-- --------
+-- * Terms
+-- --------
 type Term termF var = Free termF var
 foldTerm :: Functor t => (a -> b) -> (t b -> b) -> Term t a -> b
 foldTerm = foldFree
@@ -70,6 +70,11 @@ directSubterms _          = []
 properSubterms (Impure t) =  P.concat (subterms <$> toList t)
 properSubterms _          = []
 
+-- | Only 1st level subterms
+someSubterm :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Term f a)
+someSubterm f  = evalFree (return.return) (msum . liftM2 Impure . interleaveM f)
+
+
 collect :: (Foldable f, Functor f) => (Term f v -> Bool) -> Term f v -> [Term f v]
 collect pred t = [ u | u <- subterms t, pred u]
 
@@ -83,9 +88,9 @@ isLinear :: (Ord v, Foldable t, Functor t) => Term t v -> Bool
 isLinear t = length(snub varst) == length varst where
     varst = vars t
 
--- ----------
--- Positions
--- ----------
+-- -----------
+-- * Positions
+-- -----------
 type Position = [Int]
 
 positions :: (Functor f, Foldable f) => Term f v -> [Position]
@@ -165,9 +170,9 @@ rootSymbol :: HasId f id => Term f v -> Maybe id
 rootSymbol (Impure t) = getId t
 rootSymbol _          = Nothing
 
--- -------------
--- Substitutions
--- -------------
+-- --------------
+-- *Substitutions
+-- --------------
 -- | Note that the notion of substitution composition is not exactly what
 --    Monoid gives here (which is just left biased Map union)
 newtype Substitution termF var = Subst {unSubst::Map var (Term termF var)}
@@ -225,72 +230,9 @@ isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKe
        where
           elemsSet = Set.fromList(Map.elems rel)
 
--- | Only 1st level subterms
-someSubterm :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Term f a)
-someSubterm f  = evalFree (return.return) (msum . liftM2 Impure . interleaveM f)
--- -----------
--- Unification
--- -----------
-unifies :: forall termF var. (Unify termF, Ord var) => Term termF var -> Term termF var -> Bool
-unifies t u = isJust (unify t u)
-
-unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
-unify t u = execStateT (unifyM t u) mempty
-
-class (Traversable termF, Eq (termF ())) => Unify termF
-  where unifyM :: (MonadEnv termF var m, Eq var) => Term termF var -> Term termF var -> m ()
-
--- Generic instance
-instance (Traversable termF, Eq (termF ())) => Unify termF where
-  unifyM t s = do
-    t' <- find' t
-    s' <- find' s
-    unifyOne t' s'
-   where
-     unifyOne (Pure vt) s@(Pure vs) = if vt /= vs then varBind vt s else return ()
-     unifyOne (Pure vt) s           = {- if vt `Set.member` Set.fromList (vars s) then fail "occurs" else-} varBind vt s
-     unifyOne t           (Pure vs) = {-if vs `Set.member` Set.fromList (vars t) then fail "occurs" else-} varBind vs t
-     unifyOne t         s           = zipFree_ unifyM t s
-
--- ---------
--- Matching
--- ---------
-matches :: forall termF var. (Match termF, Ord var) => Term termF var -> Term termF var -> Bool
-matches t u = isJust (match t u)
-
-match :: (Match termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
-match t u = execStateT (matchM t u) mempty
-
-class (Eq (termF ()), Traversable termF) => Match termF where
-    matchM :: (Eq var, MonadEnv termF var m) => Term termF var -> Term termF var -> m ()
-
-instance (Traversable termF, Eq (termF ())) =>  Match termF where
-  matchM t s = do
-    t' <- find' t
-    s' <- find' s
-    matchOne t' s'
-    where matchOne (Pure v) (Pure u) | v == u = return ()
-          matchOne (Pure v) u = varBind v u
-          matchOne t        u = zipFree_ matchM t u
-
--- --------------------------
--- Equivalence up to renaming
--- --------------------------
-
-equiv :: forall termF var.
-         (Ord var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
-equiv t u = maybe False isRenaming (unify t' u)
- where
-     t' = fresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
-     freshVars = [toEnum i ..]
-     i = maximum (0 : map fromEnum (vars t)) + 1
-
-newtype EqModulo a = EqModulo a
-instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where EqModulo t1 == EqModulo t2 = t1 `equiv` t2
-
--- ------------------------------------
--- Environments: handling substitutions
--- ------------------------------------
+-- --------------------------------------
+-- ** Environments: handling substitutions
+-- --------------------------------------
 -- | Instances need only to define 'varBind' and 'lookupVar'
 class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
     varBind   :: var -> Term termF var -> m ()
@@ -335,9 +277,69 @@ instance (Functor t, Ord v) => MonadEnv t v (State (Substitution t v, a)) where
 
 #endif
 
--- ------------------------------------------
--- MonadFresh: Variants of terms and clauses
--- ------------------------------------------
+-- -------------
+-- * Unification
+-- -------------
+unifies :: forall termF var. (Unify termF, Ord var) => Term termF var -> Term termF var -> Bool
+unifies t u = isJust (unify t u)
+
+unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
+unify t u = execStateT (unifyM t u) mempty
+
+class (Traversable termF, Eq (termF ())) => Unify termF
+  where unifyM :: (MonadEnv termF var m, Eq var) => Term termF var -> Term termF var -> m ()
+
+-- Generic instance
+instance (Traversable termF, Eq (termF ())) => Unify termF where
+  unifyM t s = do
+    t' <- find' t
+    s' <- find' s
+    unifyOne t' s'
+   where
+     unifyOne (Pure vt) s@(Pure vs) = if vt /= vs then varBind vt s else return ()
+     unifyOne (Pure vt) s           = {- if vt `Set.member` Set.fromList (vars s) then fail "occurs" else-} varBind vt s
+     unifyOne t           (Pure vs) = {-if vs `Set.member` Set.fromList (vars t) then fail "occurs" else-} varBind vs t
+     unifyOne t         s           = zipFree_ unifyM t s
+
+-- ----------
+-- * Matching
+-- ----------
+matches :: forall termF var. (Match termF, Ord var) => Term termF var -> Term termF var -> Bool
+matches t u = isJust (match t u)
+
+match :: (Match termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
+match t u = execStateT (matchM t u) mempty
+
+class (Eq (termF ()), Traversable termF) => Match termF where
+    matchM :: (Eq var, MonadEnv termF var m) => Term termF var -> Term termF var -> m ()
+
+instance (Traversable termF, Eq (termF ())) =>  Match termF where
+  matchM t s = do
+    t' <- find' t
+    s' <- find' s
+    matchOne t' s'
+    where matchOne (Pure v) (Pure u) | v == u = return ()
+          matchOne (Pure v) u = varBind v u
+          matchOne t        u = zipFree_ matchM t u
+
+-- -----------------------------
+-- ** Equivalence up to renaming
+-- -----------------------------
+
+equiv :: forall termF var.
+         (Ord var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
+equiv t u = maybe False isRenaming (unify t' u)
+ where
+     t' = fresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
+     freshVars = [toEnum i ..]
+     i = maximum (0 : map fromEnum (vars t)) + 1
+
+newtype EqModulo a = EqModulo a
+instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where EqModulo t1 == EqModulo t2 = t1 `equiv` t2
+
+-- --------------------------------
+-- * Variants of terms and rules
+-- --------------------------------
 
 class Monad m => MonadFresh var m | m -> var where freshVar :: m var
 instance (Enum v, Monad m) => MonadFresh v (StateT (Sum Int) m) where freshVar = do { Sum i <- get; put (Sum $ succ i); return (toEnum i)}
