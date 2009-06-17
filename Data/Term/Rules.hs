@@ -76,13 +76,13 @@ swapRule (l :-> r) = r :-> l
 -- -----------
 -- * Variables
 -- -----------
-class Ord var => GetVars var t | t -> var where getVars :: t -> [var]
-instance (Functor termF, Foldable termF, Ord var) => GetVars var (Term termF var) where getVars = snub . toList
-instance (GetVars var t, Foldable f) => GetVars var (f t) where getVars = snub . foldMap getVars
+class Ord var => GetVars var t | t -> var where getVars :: t -> Set var
+instance (Functor termF, Foldable termF, Ord var) => GetVars var (Term termF var) where getVars = Set.fromList . toList
+instance (GetVars var t, Foldable f) => GetVars var (f t) where getVars = foldMap getVars
 --instance (GetVars t var, Foldable f, Foldable g) => GetVars (g(f t)) var where getVars = (foldMap.foldMap) getVars
 
-instance GetVars Var Var where getVars v = [v]
-instance GetVars (IOVar t) (IOVar t) where getVars v = [v]
+instance GetVars Var Var where getVars v = Set.singleton v
+instance GetVars (IOVar t) (IOVar t) where getVars v = Set.singleton v
 
 -- ------------------------------------------
 -- * GetFresh: Variants
@@ -102,7 +102,7 @@ getFresh :: forall t v m thing. (Ord v, MonadFresh v m, GetFresh t v thing) => t
 getFresh t = evalStateT (getFreshM t) (mempty :: Substitution t v)
 
 getVariant :: (Enum v, GetFresh termF v t, GetVars v t') => t -> t' -> t
-getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ getVars t)
+getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ Set.toList (getVars t))
 
 -- ---------------------
 -- * Signatures
@@ -211,4 +211,4 @@ equiv' t u = maybe False isRenaming (getUnifier t' u)
  where
      t' = getFresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
      freshVars = [toEnum i ..]
-     i = maximum (0 : map fromEnum (getVars t)) + 1
+     i = maximum (0 : map fromEnum (Set.toList $ getVars t)) + 1
