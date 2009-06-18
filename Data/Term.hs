@@ -1,7 +1,7 @@
 {-# LANGUAGE OverlappingInstances, UndecidableInstances, ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, TypeSynonymInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE CPP #-}
 
@@ -177,6 +177,10 @@ rootSymbol _          = Nothing
 --    Monoid gives here (which is just left biased Map union)
 newtype Substitution termF var = Subst {unSubst::Map var (Term termF var)}
   deriving (Monoid)
+
+deriving instance (Eq v,   Eq (Term t v))   => Eq (Substitution t v)
+deriving instance (Ord v,  Ord (Term t v))  => Ord (Substitution t v)
+deriving instance (Show v, Show (Term t v)) => Show (Substitution t v)
 
 liftSubst :: (Map v (Term t v) ->  Map v' (Term t' v')) -> Substitution t v -> Substitution t' v'
 liftSubst f (Subst e) = Subst (f e)
