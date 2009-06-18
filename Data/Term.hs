@@ -328,14 +328,11 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
 
 equiv :: forall termF var.
          (Ord var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
-equiv t u = maybe False isRenaming (unify t' u)
- where
-     t' = fresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
-     freshVars = [toEnum i ..]
-     i = maximum (0 : map fromEnum (vars t)) + 1
+equiv t u = maybe False isRenaming (unify (variant t u) u)
 
 newtype EqModulo a = EqModulo a
-instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where EqModulo t1 == EqModulo t2 = t1 `equiv` t2
+instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
+    EqModulo t1 == EqModulo t2 = t1 `equiv` t2
 
 -- --------------------------------
 -- * Variants of terms and rules

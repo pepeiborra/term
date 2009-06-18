@@ -209,8 +209,5 @@ instance (Ord v, Enum v, Ord (Term t v), GetUnifier t v thing, GetVars v thing, 
 equiv' :: forall termF var t.
          (Ord var, Enum var, Ord (Term termF var),
          GetUnifier termF var t, GetVars var t, GetFresh termF var t) => t -> t -> Bool
-equiv' t u = maybe False isRenaming (getUnifier t' u)
- where
-     t' = getFresh t `evalStateT` (mempty :: Substitution termF var) `evalState` freshVars
-     freshVars = [toEnum i ..]
-     i = maximum (0 : map fromEnum (Set.toList $ getVars t)) + 1
+equiv' t u = maybe False isRenaming (getUnifier (getVariant t u) u)
+
