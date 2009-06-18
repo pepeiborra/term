@@ -115,7 +115,7 @@ narrows rr t = second (restrictTo (vars t)) `liftM` narrows' rr t
 
 run   :: (Enum v, Eq v, Monoid s, Functor t, Foldable t, Monad m) => (Term t v -> StateT (s, [v]) m a) -> Term t v -> m (a, s)
 run f t = second fst `liftM` (f t `runStateT` (mempty, freshVars)) where
-    freshVars = [toEnum (1 + maximum (map fromEnum (vars t))) ..]
+    freshVars = [toEnum (1 + maximum ( 0 : map fromEnum (vars t))) ..]
 
 -- | one step
 narrow1' :: (Ord v, Enum v, Unify t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
