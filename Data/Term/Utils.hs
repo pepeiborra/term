@@ -19,7 +19,7 @@ size :: Foldable f => f a -> Int
 size = length . toList
 
 interleaveM :: (Monad m, Traversable t) => (a -> m a) -> t a -> [m (t a)]
-interleaveM f x = (liftM T.sequence) (interleave f return x)
+interleaveM f x = liftM T.sequence (interleave f return x)
 
 interleave :: (Traversable f) => (a -> b) -> (a -> b) -> f a -> [f b]
 interleave f def x = [unsafeZipWithG (indexed f i) [0..] x | i <- [0..size x - 1]]

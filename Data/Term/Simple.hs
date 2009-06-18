@@ -28,7 +28,7 @@ instance Eq id => Unify (TermF id) where
     t' <- find' t
     s' <- find' s
     case (t', s') of
-      (Pure vt, Pure vs) -> if vt /= vs then varBind vt s' else return ()
+      (Pure vt, Pure vs) -> when(vt /= vs) $ varBind vt s'
       (Pure vt, _)  -> {-if vt `Set.member` Set.fromList (vars s') then fail "occurs" else-} varBind vt s'
       (_, Pure vs)  -> {-if vs `Set.member` Set.fromList (vars t') then fail "occurs" else-} varBind vs t'
       (Impure t, Impure s) -> zipTermM_ unifyF t s

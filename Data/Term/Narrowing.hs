@@ -9,9 +9,9 @@ module Data.Term.Narrowing (
   narrow1', narrow1P', narrows', narrow',
   narrowBasic, narrowsBasic, narrow1Basic,
 #ifdef LOGICT
-  inn_narrowing, inn_Bnarrowing,
+  innNarrowing, innBnarrowing,
 #endif
-  narrowBounded, narrowBasicBounded
+  narrowBounded, narrowBasicBounded,
 ) where
 
 import Control.Arrow
@@ -144,14 +144,14 @@ narrows' rr = liftM (second zonkSubst) . run(closureMP(narrowStepBasic rr >=> zo
 
 #ifdef LOGICT
 -- | Innermost narrowing
-inn_narrowing :: (Unify t, Ord v, Enum v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
-inn_narrowing rr t = do
+innNarrowing :: (Unify t, Ord v, Enum v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+innNarrowing rr t = do
   (t', s) <- run (fixMP (innStepBasic rr >=> zonkM return)) t
   return (t', zonkSubst s)
 
 -- | Innermost Basic Narrowing
-inn_Bnarrowing :: (Unify t, Ord v, Enum v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
-inn_Bnarrowing rr t = second (restrictTo (vars t)) `liftM` run go t where go = fixMP (innStepBasic rr)
+innBnarrowing :: (Unify t, Ord v, Enum v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+innBnarrowing rr t = second (restrictTo (vars t)) `liftM` run go t where go = fixMP (innStepBasic rr)
 
 -- TODO: Prove that this implementation really fulfills the innermost restriction
 innStepBasic :: (Ord v, Unify t, MonadEnv t v m, MonadFresh v m, MonadLogic m) => [Rule t v] -> Term t v -> m(Term t v)

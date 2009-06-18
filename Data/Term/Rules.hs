@@ -3,7 +3,6 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE CPP #-}
 
 {-| This module works with an abstract notion of rule.
@@ -83,17 +82,17 @@ instance (Functor termF, Foldable termF, Ord var) => GetVars var (Term termF var
 instance (GetVars var t, Foldable f) => GetVars var (f t) where getVars = foldMap getVars
 --instance (GetVars t var, Foldable f, Foldable g) => GetVars (g(f t)) var where getVars = (foldMap.foldMap) getVars
 
-instance GetVars Var Var where getVars v = Set.singleton v
-instance GetVars (IOVar t) (IOVar t) where getVars v = Set.singleton v
+instance GetVars Var Var where getVars = Set.singleton
+instance GetVars (IOVar t) (IOVar t) where getVars = Set.singleton
 
 -- ------------------------------------------
 -- * GetFresh: Variants
 -- ------------------------------------------
 
-class (Traversable termF) => GetFresh (termF :: * -> *) var thing | thing -> termF var where
+class (Traversable termF) => GetFresh termF var thing | thing -> termF var where
     getFreshM :: (MonadFresh var m, MonadEnv termF var m) => thing -> m thing
 instance (Traversable termF) => GetFresh termF var (Term termF var) where
-    getFreshM t = fresh t
+    getFreshM = fresh
 instance (Traversable termF, GetFresh termF var t) => GetFresh termF var [t] where
     getFreshM = getFreshMdefault
 
@@ -141,7 +140,7 @@ getDefinedSymbols     = definedSymbols     . getSignature
 getConstructorSymbols = constructorSymbols . getSignature
 getAllSymbols         = allSymbols . getSignature
 getArity :: (Ord id, HasSignature sig id) => sig -> id -> Int
-getArity l f = fromMaybe (error $ "getArity: symbol not in signature")
+getArity l f = fromMaybe (error "getArity: symbol not in signature")
                                             (Map.lookup f arity)
   where  Sig{arity=arity} = getSignature l
 
@@ -165,7 +164,7 @@ class Functor termF => GetUnifier termF var t | t -> termF var
     where getUnifierM :: MonadEnv termF var m => t -> t -> m ()
 
 instance (Eq var, Unify f) => GetUnifier f var (Term f var) where
-  getUnifierM t u = unifyM t u
+  getUnifierM = unifyM
 instance (GetUnifier termF var t) => GetUnifier termF var [t] where
   getUnifierM = getUnifierMdefault
 
@@ -189,7 +188,7 @@ class Functor termF =>  GetMatcher termF var t | t -> termF var
     where getMatcherM :: MonadEnv termF var m => t -> t -> m ()
 
 instance (Eq var, Match f) => GetMatcher f var (Term f var) where
-  getMatcherM t u = matchM t u
+  getMatcherM = matchM
 instance (GetMatcher termF var t) => GetMatcher termF var [t] where
   getMatcherM = getMatcherMdefault
 

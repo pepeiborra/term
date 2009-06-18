@@ -21,7 +21,7 @@ module Data.Term (
 import Control.Applicative
 import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, evalFree, isPure)
 import Control.Monad.Free.Zip
-import Control.Monad (liftM, join, MonadPlus(..), msum)
+import Control.Monad (liftM, join, MonadPlus(..), msum, when)
 import Control.Monad.Trans (lift)
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
@@ -51,7 +51,7 @@ import Prelude as P hiding (mapM)
 -- --------
 -- * Terms
 -- --------
-type Term termF var = Free termF var
+type Term = Free
 foldTerm :: Functor t => (a -> b) -> (t b -> b) -> Term t a -> b
 foldTerm = foldFree
 foldTermM :: (Traversable t, Monad m) => (a -> m b) -> (t b -> m b) -> Term t a -> m b
@@ -226,7 +226,7 @@ isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKe
                     -- Actually there should be no need to check the inverse
                     -- since this is a Haskell Map and hence the domain contains no duplicates
                    Set.size elemsSet == Map.size rel &&
-                   (Map.keysSet rel) `Set.intersection` elemsSet == Set.empty
+                   Map.keysSet rel `Set.intersection` elemsSet == Set.empty
        where
           elemsSet = Set.fromList(Map.elems rel)
 
@@ -263,8 +263,8 @@ instance (Monad m, Functor t, Ord v) => MonadEnv t v (StateT (Substitution t v) 
   lookupVar t  = get >>= \s -> return(lookupSubst t s)
 
 instance (Monad m, Functor t, Ord v) => MonadEnv t v (StateT (Substitution t v, a) m) where
-  varBind v t = withFst (varBind v t)
-  lookupVar t = withFst (lookupVar t)
+  varBind v = withFst . varBind v
+  lookupVar = withFst . lookupVar
 
 #ifndef TRANSFORMERS
 instance (Functor t, Ord v) => MonadEnv t v (State (Substitution t v)) where
@@ -296,7 +296,7 @@ instance (Traversable termF, Eq (termF ())) => Unify termF where
     s' <- find' s
     unifyOne t' s'
    where
-     unifyOne (Pure vt) s@(Pure vs) = if vt /= vs then varBind vt s else return ()
+     unifyOne (Pure vt) s@(Pure vs) = when (vt /= vs) $ varBind vt s
      unifyOne (Pure vt) s           = {- if vt `Set.member` Set.fromList (vars s) then fail "occurs" else-} varBind vt s
      unifyOne t           (Pure vs) = {-if vs `Set.member` Set.fromList (vars t) then fail "occurs" else-} varBind vs t
      unifyOne t         s           = zipFree_ unifyM t s
