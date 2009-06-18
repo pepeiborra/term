@@ -281,9 +281,9 @@ instance (Functor t, Ord v) => MonadEnv t v (State (Substitution t v, a)) where
 
 #endif
 
--- -------------
--- * Unification
--- -------------
+-- ------------------------------------
+-- * Unification (without occurs check)
+-- ------------------------------------
 unifies :: forall termF var. (Unify termF, Ord var) => Term termF var -> Term termF var -> Bool
 unifies t u = isJust (unify t u)
 
@@ -291,7 +291,7 @@ unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Su
 unify t u = execStateT (unifyM t u) mempty
 
 class (Traversable termF, Eq (termF ())) => Unify termF
-  where unifyM :: (MonadEnv termF var m, Eq var) => Term termF var -> Term termF var -> m ()
+  where unifyM :: (MonadEnv termF var m, Ord var) => Term termF var -> Term termF var -> m ()
 
 -- Generic instance
 instance (Traversable termF, Eq (termF ())) => Unify termF where

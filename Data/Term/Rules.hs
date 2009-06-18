@@ -161,7 +161,7 @@ unifies' :: forall termF v t. (Ord v, GetUnifier termF v t) => t -> t -> Bool
 unifies' s t = isJust (getUnifier s t)
 
 class Functor termF => GetUnifier termF var t | t -> termF var
-    where getUnifierM :: MonadEnv termF var m => t -> t -> m ()
+    where getUnifierM :: (MonadEnv termF var m, Ord var) => t -> t -> m ()
 
 instance (Eq var, Unify f) => GetUnifier f var (Term f var) where
   getUnifierM = unifyM
@@ -169,7 +169,7 @@ instance (GetUnifier termF var t) => GetUnifier termF var [t] where
   getUnifierM = getUnifierMdefault
 
 
-getUnifierMdefault :: (GetUnifier termF var t, MonadEnv termF var m, Functor f, Foldable f, Eq (f())) =>
+getUnifierMdefault :: (Ord var, GetUnifier termF var t, MonadEnv termF var m, Functor f, Foldable f, Eq (f())) =>
                      f t -> f t -> m ()
 getUnifierMdefault t u
     | fmap (const ()) t == fmap (const ()) u = zipWithM_ getUnifierM (toList t) (toList u)
