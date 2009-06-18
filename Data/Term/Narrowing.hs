@@ -12,6 +12,7 @@ module Data.Term.Narrowing (
   innNarrowing, innBnarrowing,
 #endif
   narrowBounded, narrowBasicBounded,
+  narrowStepBasic
 ) where
 
 import Control.Arrow
