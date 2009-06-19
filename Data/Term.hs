@@ -332,7 +332,7 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
 
 equiv :: forall termF var.
          (Ord var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
-equiv t u = maybe False isRenaming (unify (variant t u) u)
+equiv t u = maybe False isRenaming (match (variant t u) u)
 
 newtype EqModulo a = EqModulo a
 instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
