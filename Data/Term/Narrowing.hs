@@ -30,7 +30,6 @@ import Data.Monoid
 import Data.Traversable (Traversable)
 import qualified Data.Traversable as T
 
-import Data.Foldable (toList)
 import Data.Term
 import Data.Term.Rules
 import Data.Term.Utils
