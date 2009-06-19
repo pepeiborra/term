@@ -320,10 +320,10 @@ class (Eq (termF ()), Traversable termF) => Match termF where
 instance (Traversable termF, Eq (termF ())) =>  Match termF where
   matchM t s = do
     t' <- find' t
-    s' <- find' s
-    matchOne t' s'
-    where matchOne (Pure v) (Pure u) | v == u = return ()
-          matchOne (Pure v) u = varBind v u
+    matchOne t' s
+    where matchOne (Pure v) u = do
+              bound_already <- isJust `liftM` lookupVar v
+              if bound_already then fail "incompatible" else varBind v u
           matchOne t        u = zipFree_ matchM t u
 
 -- -----------------------------
