@@ -301,9 +301,30 @@ instance (Traversable termF, Eq (termF ())) => Unify termF where
     unifyOne t' s'
    where
      unifyOne (Pure vt) s@(Pure vs) = when (vt /= vs) $ varBind vt s
-     unifyOne (Pure vt) s           = {- if vt `Set.member` Set.fromList (vars s) then fail "occurs" else-} varBind vt s
-     unifyOne t           (Pure vs) = {-if vs `Set.member` Set.fromList (vars t) then fail "occurs" else-} varBind vs t
+     unifyOne (Pure vt) s           = varBind vt s
+     unifyOne t           (Pure vs) = varBind vs t
      unifyOne t         s           = zipFree_ unifyM t s
+
+
+{- | Occurs function, to roll your own unification with occurs check.
+   To do this, chip in your custom instance of Unify as follows
+
+> instance (Traversable termF, Eq (termF ())) => Unify termF where
+>   unifyM t s = do
+>     t' <- find' t
+>     s' <- find' s
+>     unifyOne t' s'
+>    where
+>      unifyOne (Pure vt) s@(Pure vs) = when (vt /= vs) $ varBind vt s
+>      unifyOne (Pure vt) s           = vt `occursIn` s' >>= \occ -> if occ then fail "occurs" else  varBind vt s
+>      unifyOne t           (Pure vs) = vs `occursIn` t' >>= \occ -> if occ then fail "occurs" else  varBind vs t
+>      unifyOne t         s           = zipFree_ unifyM t s
+-}
+
+occursIn :: (Ord v, Traversable t, MonadEnv t v m) => v -> Term t v -> m Bool
+occursIn v t = do
+  t' <- zonkM return t
+  return (v `Set.member` Set.fromList (vars t'))
 
 -- ----------
 -- * Matching
