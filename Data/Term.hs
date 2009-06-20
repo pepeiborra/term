@@ -6,15 +6,25 @@
 {-# LANGUAGE CPP #-}
 
 module Data.Term (
+-- * Terms
      Term, Free(..), foldTerm, foldTermM, mapTerm, evalTerm,
-     WithNote(..), WithNote1(..), note, dropNote, noteV,
+-- * Subterms
      subterms, properSubterms, directSubterms, someSubterm, collect,
-     positions, annotateWithPos, isVar, vars, isLinear,
+-- * Positions
+     Position, positions, (!), updateAt, updateAt',
+-- * Variables
+     isVar, vars, isLinear,
+-- * Annotating terms
+     WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos,
+-- * Ids
      HasId(..), MapId(..), rootSymbol,
-     Position, (!), updateAt, updateAt',
-     Match(..), Unify(..), unify, match, matches, unifies, equiv, EqModulo(..),
+-- * Matching & Unification (without occurs check)
+     Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, EqModulo(..),
+-- * Substitutions
      Substitution(..), fromListSubst, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
+-- Environment monad
      MonadEnv(..), find',
+-- Fresh monad
      MonadFresh(..), fresh, freshWith, variant
      ) where
 
