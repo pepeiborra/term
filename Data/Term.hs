@@ -46,6 +46,7 @@ import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWST)
 import Control.Monad.Writer(WriterT)
 #endif
+import Data.Bifunctor
 import Data.Foldable (Foldable(..), toList)
 import Data.List ((\\))
 import Data.Map (Map)
@@ -175,6 +176,7 @@ annotateWithPos = go [] where
 -- -----
 class Functor f => HasId f id | f -> id where getId :: f a -> Maybe id
 class MapId f where mapId :: (id -> id') -> f id a -> f id' a
+instance Bifunctor f => MapId f where mapId f = bimap f id
 
 rootSymbol :: HasId f id => Term f v -> Maybe id
 rootSymbol (Impure t) = getId t

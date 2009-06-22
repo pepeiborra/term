@@ -35,7 +35,8 @@ Library
                FlexibleInstances, TypeSynonymInstances,
                GeneralizedNewtypeDeriving
 
-  exposed-modules: 
+  exposed-modules:
+    Data.Bifunctor 
     Data.Term,
     Data.Term.Rules,
     Data.Term.Simple,

@@ -3,6 +3,7 @@
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
 import Control.Monad.Free
+import Data.Bifunctor
 import Data.Foldable
 import Data.Traversable
 import Data.Term
@@ -29,8 +30,8 @@ instance Eq id => Unify (TermF id) where
     s' <- find' s
     case (t', s') of
       (Pure vt, Pure vs) -> when(vt /= vs) $ varBind vt s'
-      (Pure vt, _)  -> {-if vt `Set.member` Set.fromList (vars s') then fail "occurs" else-} varBind vt s'
-      (_, Pure vs)  -> {-if vs `Set.member` Set.fromList (vars t') then fail "occurs" else-} varBind vs t'
+      (Pure vt, _)  -> varBind vt s'
+      (_, Pure vs)  -> varBind vs t'
       (Impure t, Impure s) -> zipTermM_ unifyF t s
    zipTermM_ f (Term f1 tt1) (Term f2 tt2) | f1 == f2 = zipWithM_ f tt1 tt2
                                            | otherwise = fail "structure mismatch"
@@ -46,3 +47,6 @@ instance Foldable (TermF id) where
     foldMap  f (Term _ tt) = foldMap f tt
 instance Traversable (TermF id) where
     traverse f (Term a tt) = Term a `fmap` traverse f tt
+
+instance Bifunctor TermF where
+    bimap f g (Term id tt) = Term (f id) (fmap g tt)
