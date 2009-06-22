@@ -175,12 +175,13 @@ annotateWithPos = go [] where
 -- * Ids
 -- -----
 class Functor f => HasId f id | f -> id where getId :: f a -> Maybe id
+instance HasId f id => HasId (Free f) id where getId = evalFree (const Nothing) getId
+
 class MapId f where mapId :: (id -> id') -> f id a -> f id' a
 instance Bifunctor f => MapId f where mapId f = bimap f id
 
 rootSymbol :: HasId f id => Term f v -> Maybe id
-rootSymbol (Impure t) = getId t
-rootSymbol _          = Nothing
+rootSymbol = getId
 
 -- --------------
 -- *Substitutions
