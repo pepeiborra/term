@@ -183,9 +183,9 @@ instance Bifunctor f => MapId f where mapId f = bimap f id
 rootSymbol :: HasId f id => Term f v -> Maybe id
 rootSymbol = getId
 
--- --------------
--- *Substitutions
--- --------------
+-- ---------------
+-- * Substitutions
+-- ---------------
 -- | Note that the notion of substitution composition is not exactly what
 --    Monoid gives here (which is just left biased Map union)
 newtype Substitution termF var = Subst {unSubst::Map var (Term termF var)}

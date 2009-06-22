@@ -47,7 +47,6 @@ import qualified Data.Set as Set
 import Data.Term
 import Data.Term.Var
 import Data.Term.IOVar
-import Data.Term.Utils
 
 
 -- ----------------

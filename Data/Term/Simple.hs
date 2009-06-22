@@ -50,3 +50,4 @@ instance Traversable (TermF id) where
 
 instance Bifunctor TermF where
     bimap f g (Term id tt) = Term (f id) (fmap g tt)
+
