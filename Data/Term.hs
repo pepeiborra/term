@@ -17,7 +17,7 @@ module Data.Term (
 -- * Annotating terms
      WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos,
 -- * Ids
-     HasId(..), MapId(..), rootSymbol,
+     HasId(..), MapId(..), rootSymbol, mapRootSymbol, mapTermSymbols,
 -- * Matching & Unification (without occurs check)
      Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, EqModulo(..),
 -- * Substitutions
@@ -189,6 +189,12 @@ instance Bifunctor f => MapId f where mapId f = bimap f id
 
 rootSymbol :: HasId f id => Term f v -> Maybe id
 rootSymbol = getId
+
+mapRootSymbol :: (Functor (f id), MapId f) => (id -> id) -> Term (f id) v -> Term (f id) v
+mapRootSymbol f = evalFree return (Impure . mapId f)
+
+mapTermSymbols :: (Functor (f id), Functor (f id'), MapId f) => (id -> id') -> Term (f id) v -> Term (f id') v
+mapTermSymbols f = mapFree (mapId f)
 
 -- ---------------
 -- * Substitutions
