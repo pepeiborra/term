@@ -9,7 +9,7 @@ module Data.Term (
 -- * Terms
      Term, Free(..), foldTerm, foldTermM, mapTerm, evalTerm,
 -- * Subterms
-     subterms, properSubterms, directSubterms, someSubterm, collect,
+     subterms, properSubterms, directSubterms, someSubterm, mapSubterms, mapMSubterms, collect,
 -- * Positions
      Position, positions, (!), updateAt, updateAt',
 -- * Variables
@@ -80,6 +80,13 @@ directSubterms (Impure t) = toList t
 directSubterms _          = []
 properSubterms (Impure t) =  P.concat (subterms <$> toList t)
 properSubterms _          = []
+
+mapSubterms :: Functor t => (Term t v -> Term t v) -> Term t v -> Term t v
+mapSubterms f  = evalTerm return (Impure . fmap f)
+
+mapMSubterms :: (Traversable t, Monad m) => (Term t v -> m(Term t v)) -> Term t v -> m(Term t v)
+mapMSubterms f = evalTerm (return.return) (liftM Impure . mapM f)
+
 
 -- | Only 1st level subterms
 someSubterm :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Term f a)
