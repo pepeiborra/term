@@ -9,7 +9,7 @@ module Data.Term (
 -- * Terms
      Term, Free(..), foldTerm, foldTermM, mapTerm, evalTerm,
 -- * Subterms
-     subterms, properSubterms, directSubterms, someSubterm, collect,
+     subterms, properSubterms, directSubterms, someSubterm, mapSubterms, mapMSubterms, collect,
 -- * Positions
      Position, positions, (!), updateAt, updateAt',
 -- * Variables
@@ -17,7 +17,7 @@ module Data.Term (
 -- * Annotating terms
      WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos,
 -- * Ids
-     HasId(..), MapId(..), rootSymbol,
+     HasId(..), MapId(..), rootSymbol, mapRootSymbol, mapTermSymbols,
 -- * Matching & Unification (without occurs check)
      Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, EqModulo(..),
 -- * Substitutions
@@ -46,6 +46,7 @@ import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWST)
 import Control.Monad.Writer(WriterT)
 #endif
+import Data.Bifunctor
 import Data.Foldable (Foldable(..), toList)
 import Data.List ((\\))
 import Data.Map (Map)
@@ -79,6 +80,13 @@ directSubterms (Impure t) = toList t
 directSubterms _          = []
 properSubterms (Impure t) =  P.concat (subterms <$> toList t)
 properSubterms _          = []
+
+mapSubterms :: Functor t => (Term t v -> Term t v) -> Term t v -> Term t v
+mapSubterms f  = evalTerm return (Impure . fmap f)
+
+mapMSubterms :: (Traversable t, Monad m) => (Term t v -> m(Term t v)) -> Term t v -> m(Term t v)
+mapMSubterms f = evalTerm (return.return) (liftM Impure . mapM f)
+
 
 -- | Only 1st level subterms
 someSubterm :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Term f a)
@@ -174,15 +182,23 @@ annotateWithPos = go [] where
 -- * Ids
 -- -----
 class Functor f => HasId f id | f -> id where getId :: f a -> Maybe id
+instance HasId f id => HasId (Free f) id where getId = evalFree (const Nothing) getId
+
 class MapId f where mapId :: (id -> id') -> f id a -> f id' a
+instance Bifunctor f => MapId f where mapId f = bimap f id
 
 rootSymbol :: HasId f id => Term f v -> Maybe id
-rootSymbol (Impure t) = getId t
-rootSymbol _          = Nothing
+rootSymbol = getId
 
--- --------------
--- *Substitutions
--- --------------
+mapRootSymbol :: (Functor (f id), MapId f) => (id -> id) -> Term (f id) v -> Term (f id) v
+mapRootSymbol f = evalFree return (Impure . mapId f)
+
+mapTermSymbols :: (Functor (f id), Functor (f id'), MapId f) => (id -> id') -> Term (f id) v -> Term (f id') v
+mapTermSymbols f = mapFree (mapId f)
+
+-- ---------------
+-- * Substitutions
+-- ---------------
 -- | Note that the notion of substitution composition is not exactly what
 --    Monoid gives here (which is just left biased Map union)
 newtype Substitution termF var = Subst {unSubst::Map var (Term termF var)}

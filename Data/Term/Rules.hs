@@ -47,7 +47,6 @@ import qualified Data.Set as Set
 import Data.Term
 import Data.Term.Var
 import Data.Term.IOVar
-import Data.Term.Utils
 
 
 -- ----------------
@@ -131,6 +130,17 @@ instance (Foldable t, Ord id, HasId t id) => HasSignature [Rule t v] id where
                                   | l :-> r <- rules
                                   , t <- concatMap subterms [l,r]
                                   , Just f <- [rootSymbol t]]
+
+
+instance (Foldable t, Ord id, HasId t id) => HasSignature [Term t v] id where
+  getSignature terms = Sig{ arity              = arity
+                          , definedSymbols     = Set.empty
+                          , constructorSymbols = Map.keysSet arity
+                          }
+    where arity =  Map.fromList [(f,length (directSubterms t))
+                                  | t <- concatMap subterms terms
+                                  , Just f <- [rootSymbol t]]
+
 
 instance (Foldable t, Ord id, HasId t id) => HasSignature (Set (Rule t v)) id where
   getSignature = getSignature . toList
