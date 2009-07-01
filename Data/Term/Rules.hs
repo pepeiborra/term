@@ -67,8 +67,10 @@ type Rule t v = RuleF (Term t v)
 
 class HasRules t v trs | trs -> t v where rules :: trs -> [Rule t v]
 class HasRules t v trs => IsTRS t v trs where tRS :: [Rule t v] -> trs
-instance HasRules t v [Rule t v] where rules = id
-instance IsTRS    t v [Rule t v] where tRS   = id
+
+instance HasRules t v (Rule t v)            where rules = (:[])
+instance HasRules t v a => HasRules t v [a] where rules = foldMap rules
+instance IsTRS    t v [Rule t v]            where tRS   = id
 
 swapRule :: RuleF a -> RuleF a
 swapRule (l :-> r) = r :-> l
