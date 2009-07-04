@@ -19,7 +19,7 @@ module Data.Term (
 -- * Ids
      HasId(..), MapId(..), rootSymbol, mapRootSymbol, mapTermSymbols,
 -- * Matching & Unification (without occurs check)
-     Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, EqModulo(..),
+     Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, equiv2, EqModulo(..),
 -- * Substitutions
      Substitution(..), fromListSubst, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
 -- Environment monad
@@ -381,6 +381,8 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
 equiv :: forall termF var.
          (Ord var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
 equiv t u = maybe False isRenaming (match (variant t u) u)
+
+equiv2 t u = let t' = variant t u in matches t' u && matches u t'
 
 newtype EqModulo a = EqModulo a
 instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where

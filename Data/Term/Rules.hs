@@ -21,7 +21,7 @@ module Data.Term.Rules
    getArity, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
    isConstructor, isDefined, collectIds,
    GetVars(..),
-   GetUnifier(..), getUnifier, unifies', equiv', getUnifierMdefault,
+   GetUnifier(..), getUnifier, unifies', equiv', equiv2', getUnifierMdefault,
    GetMatcher(..), getMatcher, matches', getMatcherMdefault,
    GetFresh(..), getFresh, getVariant, getFreshMdefault
   ) where
@@ -221,4 +221,4 @@ equiv' :: forall termF var t.
          (Ord var, Enum var, Ord (Term termF var),
          GetUnifier termF var t, GetVars var t, GetFresh termF var t) => t -> t -> Bool
 equiv' t u = maybe False isRenaming (getUnifier (getVariant t u) u)
-
+equiv2' t u = let t' = getVariant t u in matches' t' u
