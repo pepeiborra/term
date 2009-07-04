@@ -368,7 +368,8 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
   matchM t s = do
     t' <- find' t
     matchOne t' s
-    where matchOne (Pure v) u = do
+    where matchOne (Pure v) (Pure u) | v == u = return ()
+          matchOne (Pure v) u = do
               bound_already <- isJust `liftM` lookupVar v
               if bound_already then fail "incompatible" else varBind v u
           matchOne t        u = zipFree_ matchM t u
