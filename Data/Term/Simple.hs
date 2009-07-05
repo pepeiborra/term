@@ -4,9 +4,13 @@ module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
 import Control.Monad.Free
 import Data.Bifunctor
-import Data.Foldable
+import Data.Char (isAlpha)
+import Data.Foldable (Foldable(..), msum)
 import Data.Traversable
+import Text.PrettyPrint
+
 import Data.Term
+import Data.Term.Ppr
 
 data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show)
 type Term1 id = Free (TermF id)
@@ -38,6 +42,16 @@ instance Eq id => Unify (TermF id) where
 
 instance HasId (TermF id) id where getId (Term id _) = Just id
 instance MapId TermF where mapId f (Term id tt) = Term (f id) tt
+
+instance (Ppr a, Ppr id) => Ppr (TermF id a) where
+    ppr (Term n []) = ppr n
+    ppr (Term n [x,y]) | not (any isAlpha $ show $ ppr n) = ppr x <+> ppr n <+> ppr y
+    ppr (Term n tt) = ppr n <> parens (hcat$ punctuate comma$ map ppr tt)
+
+instance Ppr a => Ppr (TermF String a) where
+    ppr (Term n []) = text n
+    ppr (Term n [x,y]) | not (any isAlpha n) = ppr x <+> text n <+> ppr y
+    ppr (Term n tt) = text n <> parens (hcat$ punctuate comma $ map ppr tt)
 
 -- Functor boilerplate
 -- --------------------

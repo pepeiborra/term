@@ -43,8 +43,10 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Text.PrettyPrint
 
 import Data.Term
+import Data.Term.Ppr
 import Data.Term.Var
 import Data.Term.IOVar
 
@@ -71,6 +73,8 @@ class HasRules t v trs => IsTRS t v trs where tRS :: [Rule t v] -> trs
 instance HasRules t v (Rule t v)            where rules = (:[])
 instance HasRules t v a => HasRules t v [a] where rules = foldMap rules
 instance IsTRS    t v [Rule t v]            where tRS   = id
+instance Ppr a => Ppr (RuleF a) where
+    ppr (l :-> r) = ppr l <+> text "->" <+> ppr r
 
 swapRule :: RuleF a -> RuleF a
 swapRule (l :-> r) = r :-> l
@@ -151,9 +155,9 @@ getDefinedSymbols, getConstructorSymbols, getAllSymbols :: (Ord id, HasSignature
 getDefinedSymbols     = definedSymbols     . getSignature
 getConstructorSymbols = constructorSymbols . getSignature
 getAllSymbols         = allSymbols . getSignature
-getArity :: (Ord id, HasSignature sig id) => sig -> id -> Int
-getArity l f = fromMaybe (error "getArity: symbol not in signature")
-                                            (Map.lookup f arity)
+getArity :: (Ord id, HasSignature sig id, Ppr id) => sig -> id -> Int
+getArity l f = fromMaybe (error ("getArity: symbol " ++ show (ppr f) ++ " not in signature"))
+                         (Map.lookup f arity)
   where  Sig{arity=arity} = getSignature l
 
 isDefined, isConstructor :: (Ord id, HasId t id, Foldable t, HasSignature sig id) => sig -> Term t v -> Bool
