@@ -19,6 +19,7 @@ class Ppr a where ppr :: a -> Doc
 instance Ppr Doc    where ppr d = d
 instance Ppr String where ppr = text
 instance Ppr Int    where ppr = Ppr.int
+instance Ppr Integer where ppr = Ppr.integer
 instance Ppr Bool where ppr = text . show
 instance Ppr a => Ppr (Maybe a) where
     ppr Nothing  = text "Nothing"
