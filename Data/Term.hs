@@ -21,7 +21,8 @@ module Data.Term (
 -- * Matching & Unification (without occurs check)
      Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, equiv2, EqModulo(..),
 -- * Substitutions
-     Substitution(..), fromListSubst, restrictTo, liftSubst, lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
+     Substitution(..), fromListSubst, domain, codomain, restrictTo, liftSubst,
+     lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
 -- Environment monad
      MonadEnv(..), find',
 -- Fresh monad
@@ -53,6 +54,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Data.Monoid
+import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Traversable as T
 
@@ -219,6 +221,12 @@ applySubst s = (>>= f) where
     f v = case lookupSubst v s of
             Nothing -> return v
             Just t' -> t'
+
+domain :: Substitution t v -> Set v
+domain = Map.keysSet . unSubst
+
+codomain :: Substitution t v -> [Term t v]
+codomain = Map.elems . unSubst
 
 restrictTo :: Ord var => [var] -> Substitution id var -> Substitution id var
 restrictTo vv = liftSubst f where
