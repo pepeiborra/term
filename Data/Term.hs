@@ -11,7 +11,7 @@ module Data.Term (
 -- * Subterms
      subterms, properSubterms, directSubterms, someSubterm, mapSubterms, mapMSubterms, collect,
 -- * Positions
-     Position, positions, (!), updateAt, updateAt',
+     Position, positions, (!), (!*), updateAt, updateAt',
 -- * Variables
      isVar, vars, isLinear,
 -- * Annotating terms
@@ -121,6 +121,12 @@ positions = foldFree (const []) f where
 Impure t ! (i:ii) = (toList t !! (i-1)) ! ii
 t        ! []     = t
 _        ! _      = error "(!): invalid position"
+
+(!*) :: (Monad m, Foldable f) => Term f v -> Position -> m(Term f v)
+Impure t !* (i:ii) = (toList t !! (i-1)) !* ii
+t        !* []     = return t
+_        !* _      = fail "(!): invalid position"
+
 
 -- | Updates the subterm at the position given
 --   A failure to reach the position given results in a runtime error
