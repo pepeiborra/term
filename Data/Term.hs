@@ -21,7 +21,7 @@ module Data.Term (
 -- * Matching & Unification (without occurs check)
      Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, equiv2, EqModulo(..),
 -- * Substitutions
-     Substitution(..), fromListSubst, domain, codomain, restrictTo, liftSubst,
+     Substitution, SubstitutionF(..), fromListSubst, domain, codomain, restrictTo, liftSubst,
      lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
 -- Environment monad
      MonadEnv(..), find',
@@ -209,8 +209,10 @@ mapTermSymbols f = mapFree (mapId f)
 -- ---------------
 -- | Note that the notion of substitution composition is not exactly what
 --    Monoid gives here (which is just left biased Map union)
-newtype Substitution termF var = Subst {unSubst::Map var (Term termF var)}
-  deriving (Monoid)
+newtype SubstitutionF k a = Subst {unSubst::Map k a}
+  deriving (Monoid, Functor)
+
+type Substitution termF var = SubstitutionF var (Term termF var)
 
 deriving instance (Eq v,   Eq (Term t v))   => Eq (Substitution t v)
 deriving instance (Ord v,  Ord (Term t v))  => Ord (Substitution t v)
