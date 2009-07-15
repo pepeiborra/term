@@ -16,7 +16,7 @@
     operations which work with sets of terms.
 -}
 module Data.Term.Rules
-  (RuleF(..), Rule, HasRules(..), swapRule, IsTRS(..),
+  (RuleF(..), Rule, left, right, HasRules(..), swapRule, IsTRS(..),
    Signature(..), allSymbols, HasSignature(..),
    getArity, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
    isConstructor, isDefined, collectIds,
@@ -78,6 +78,11 @@ instance Ppr a => Ppr (RuleF a) where
 
 swapRule :: RuleF a -> RuleF a
 swapRule (l :-> r) = r :-> l
+
+left,right :: (a -> a) -> RuleF a -> RuleF a
+
+left f (l :-> r)  = f l :-> r
+right f (l :-> r) = l   :-> f r
 
 -- -----------
 -- * Variables
