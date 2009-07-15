@@ -68,7 +68,7 @@ fill ct t = ct >>= f
 contexts :: Traversable t => Term t v -> [(Term t v, Context t v, Position)]
 contexts t = [ (fmap fromRight t_i, u, [i])
              | i <- [1..length (directSubterms t)]
-             , (u, t_i) <- updateAt' [i] (fmap Right t) (const mempty) ]
+             , (u, t_i) <- updateAt' [i] (const mempty)(fmap Right t) ]
   where fromRight (Right x) = x
         fromRight _ = error "contexts: the impossible happened"
 

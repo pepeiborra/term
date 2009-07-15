@@ -122,11 +122,11 @@ _        ! _      = error "(!): invalid position"
 
 -- | Updates the subterm at the position given
 --   A failure to reach the position given results in a runtime error
-updateAt  :: (Traversable f) =>  Position -> Term f v -> (Term f v -> Term f v) -> Term f v
+updateAt  :: (Traversable f) =>  Position -> (Term f v -> Term f v) -> Term f v -> Term f v
 updateAt (0:_)  _          _ = error "updateAt: 0 is not a position!"
-updateAt []     t          f = f t
-updateAt (i:ii) (Impure t) f = Impure (unsafeZipWithG g [1..] t)
-                               where g j st = if i==j then updateAt ii st f else st
+updateAt []     f          t = f t
+updateAt (i:ii) f (Impure t) = Impure (unsafeZipWithG g [1..] t)
+                               where g j st = if i==j then updateAt ii f st else st
 updateAt _      _          _ = error "updateAt: invalid position given"
 
 
@@ -134,8 +134,8 @@ updateAt _      _          _ = error "updateAt: invalid position given"
 --   returning a tuple with the new term and the previous contents at that position.
 --   Failure is contained inside the monad
 updateAt'  :: (Traversable f, Monad m) =>
-              Position -> Term f v -> (Term f v -> Term f v) -> m (Term f v, Term f v)
-updateAt' pos t f = runStateT (go pos t) t where
+              Position -> (Term f v -> Term f v) -> Term f v -> m (Term f v, Term f v)
+updateAt' pos f t = runStateT (go pos t) t where
  go (0:_)  _          = fail "updateAt: 0 is not a position!"
  go []     t          = put t >> return (f t)
  go (i:ii) (Impure t) = Impure `liftM` unsafeZipWithGM g [1..] t
