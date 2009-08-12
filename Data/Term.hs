@@ -207,16 +207,21 @@ mapTermSymbols f = mapFree (mapId f)
 -- ---------------
 -- * Substitutions
 -- ---------------
--- | Note that the notion of substitution composition is not exactly what
---    Monoid gives here (which is just left biased Map union)
-newtype SubstitutionF k a = Subst {unSubst::Map k a}
-  deriving (Monoid, Functor)
-
 type Substitution termF var = SubstitutionF var (Term termF var)
+
+newtype SubstitutionF k a = Subst {unSubst::Map k a}
+  deriving (Functor)
+
+instance (Functor t, Ord v) => Monoid (Substitution t v) where
+  mempty = Subst mempty
+  s1 `mappend` s2 =  (applySubst s2 <$> s1)
 
 deriving instance (Eq v,   Eq (Term t v))   => Eq (Substitution t v)
 deriving instance (Ord v,  Ord (Term t v))  => Ord (Substitution t v)
 deriving instance (Show v, Show (Term t v)) => Show (Substitution t v)
+
+emptySubst :: Ord v => Substitution t v
+emptySubst = Subst mempty
 
 liftSubst :: (Map v (Term t v) ->  Map v' (Term t' v')) -> Substitution t v -> Substitution t' v'
 liftSubst f (Subst e) = Subst (f e)
