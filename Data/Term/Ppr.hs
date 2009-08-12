@@ -31,7 +31,8 @@ instance (Ppr a, Ppr b, Ppr c) => Ppr (a,b,c) where ppr (a,b,c) = parens (ppr a 
 instance (Ppr a, Ppr b, Ppr c, Ppr d) => Ppr (a,b,c,d) where
     ppr (a,b,c,d) = parens (fsep $ punctuate comma [ppr a, ppr b, ppr c, ppr d])
 instance Ppr a => Ppr (Set a)            where ppr = braces   . hcat . punctuate comma . map ppr . Set.toList
-instance (Ppr k, Ppr a) => Ppr (Map k a) where ppr = vcat . map ppr . Map.toList
+instance (Ppr k, Ppr a) => Ppr (Map k a) where
+    ppr m = vcat$ concat [[ppr k, nest 2 (ppr v)] | (k,v) <-  Map.toList m]
 instance (Ppr a, Ppr b) => Ppr (Either a b) where ppr = either ppr ppr
 
 instance (Ppr (f(Free f a)), Ppr a) => Ppr (Term f a) where ppr (Impure t) = ppr t; ppr (Pure a) = ppr a
