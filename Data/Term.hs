@@ -21,7 +21,7 @@ module Data.Term (
 -- * Matching & Unification (without occurs check)
      Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, equiv2, EqModulo(..),
 -- * Substitutions
-     Substitution, SubstitutionF(..), fromListSubst, domain, codomain, restrictTo, liftSubst,
+     Substitution, SubstitutionF(..), emptySubst, fromListSubst, domain, codomain, restrictTo, liftSubst,
      lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
 -- Environment monad
      MonadEnv(..), find',
