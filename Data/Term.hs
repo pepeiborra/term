@@ -15,7 +15,7 @@ module Data.Term (
 -- * Variables
      isVar, vars, isLinear,
 -- * Annotating terms
-     WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos,
+     WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos, annotateWithPosV,
 -- * Ids
      HasId(..), MapId(..), rootSymbol, mapRootSymbol, mapTermSymbols,
 -- * Matching & Unification (without occurs check)
@@ -185,6 +185,11 @@ annotateWithPos :: Traversable f => Term f v -> Term (WithNote1 Position f) (Wit
 annotateWithPos = go [] where
      go pos = evalFree (\v -> return $ Note (pos,v))
                        (\t -> Impure (Note1 (pos, unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] t))) -- TODO Remove the append at tail
+
+annotateWithPosV :: Traversable f => Term f v -> Term f (WithNote Position v)
+annotateWithPosV= go [] where
+     go pos = evalFree (\v -> return $ Note (pos,v))
+                       (\t -> Impure (unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] t)) -- TODO Remove the append at tail
 
 -- -----
 -- * Ids
