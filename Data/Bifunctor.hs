@@ -1,3 +1,5 @@
+{-# LANGUAGE OverlappingInstances #-}
+
 module Data.Bifunctor where
 
 class Bifunctor b where bimap :: (u->v) -> (s->t) -> b u s ->b v t
