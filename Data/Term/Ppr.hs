@@ -17,6 +17,7 @@ class Ppr a where ppr :: a -> Doc
 
 --instance Ppr Char where ppr = char
 instance Ppr Doc    where ppr d = d
+instance Ppr Char   where ppr = char
 instance Ppr String where ppr = text
 instance Ppr Int    where ppr = Ppr.int
 instance Ppr Integer where ppr = Ppr.integer
