@@ -44,3 +44,4 @@ instance (Ppr var, Ppr (Free termF var)) => Ppr (Substitution termF var) where
     ppr = braces . hcat . punctuate comma . map (\(v,t) -> ppr v <+> equals <+> ppr t) . Map.toList . unSubst
 
 instance Ppr (IOVar t) where ppr = text . show
+instance Ppr a => Ppr (EqModulo a) where ppr = ppr . eqModulo
