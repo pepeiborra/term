@@ -400,9 +400,9 @@ equiv t u = maybe False isRenaming (match (variant t u) u)
 
 equiv2 t u = let t' = variant t u in matches t' u && matches u t'
 
-newtype EqModulo a = EqModulo a
+newtype EqModulo a = EqModulo {eqModulo::a}
 instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
-    EqModulo t1 == EqModulo t2 = t1 `equiv` t2
+    EqModulo t1 == EqModulo t2 = t1 `equiv2` t2
 
 -- --------------------------------
 -- * Variants of terms and rules
