@@ -44,7 +44,7 @@ import Control.Monad.Trans.Writer(WriterT)
 import Control.Monad.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
 import Control.Monad.List(ListT)
 import Control.Monad.Reader(ReaderT)
-import Control.Monad.RWS(RWST)
+import Control.Monad.RWS(RWS,RWST)
 import Control.Monad.Writer(WriterT)
 #endif
 import Data.Bifunctor
@@ -412,10 +412,12 @@ class Monad m => MonadFresh var m | m -> var where freshVar :: m var
 instance (Enum v, Monad m) => MonadFresh v (StateT (Sum Int) m) where freshVar = do { Sum i <- get; put (Sum $ succ i); return (toEnum i)}
 instance Monad m => MonadFresh v (StateT [v] m)     where freshVar = do { x:xx <- get; put xx; return x}
 instance Monad m => MonadFresh v (StateT (a,[v]) m) where freshVar = withSnd freshVar
+instance (Monoid w, Monad m) => MonadFresh v (RWST r w [v] m) where freshVar = do { x:xx <- get; put xx; return x}
 
 #ifndef TRANSFORMERS
 instance MonadFresh v (State [v])     where freshVar = do { x:xx <- get; put xx; return x}
 instance MonadFresh v (State (a,[v])) where freshVar = do {(s,x:xx) <- get; put (s,xx); return x}
+instance (Monoid w) => MonadFresh v (RWS r w [v]) where freshVar = do { x:xx <- get; put xx; return x}
 #endif
 
 fresh ::  (Traversable t, MonadEnv t var m, MonadFresh var m) =>
@@ -467,4 +469,5 @@ instance (Monoid w, Functor t, MonadEnv t var m) => MonadEnv t var (RWST r w s m
 
 instance MonadFresh var m => MonadFresh var (ListT    m) where freshVar = lift freshVar
 instance MonadFresh var m => MonadFresh var (StateT s m) where freshVar = lift freshVar
+instance (Monoid w, MonadFresh var m) => MonadFresh var (RWST r w s m) where freshVar = lift freshVar
 instance (MonadFresh var m,Monoid w) => MonadFresh var (WriterT w m) where freshVar = lift freshVar
