@@ -18,8 +18,8 @@
 module Data.Term.Rules
   (RuleF(..), Rule, left, right, HasRules(..), swapRule, IsTRS(..),
    Signature(..), allSymbols, HasSignature(..),
-   getArity, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
-   isConstructor, isDefined, collectIds,
+   getArity, getArities, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
+   isConstructorTerm, isRootDefined, collectIds,
    GetVars(..),
    GetUnifier(..), getUnifier, unifies', equiv', equiv2', getUnifierMdefault,
    GetMatcher(..), getMatcher, matches', getMatcherMdefault,
@@ -162,12 +162,15 @@ getConstructorSymbols = constructorSymbols . getSignature
 getAllSymbols         = allSymbols . getSignature
 getArity :: (Ord id, HasSignature sig id, Ppr id) => sig -> id -> Int
 getArity l f = fromMaybe (error ("getArity: symbol " ++ show (ppr f) ++ " not in signature"))
+isConstructorTerm :: (Ord id, HasId t id, Foldable t, HasSignature sig id) => sig -> Term t v -> Bool
+isConstructorTerm sig t = (`Set.member` getConstructorSymbols sig) `all` collectIds t
                          (Map.lookup f arity)
   where  Sig{arity=arity} = getSignature l
 
-isDefined, isConstructor :: (Ord id, HasId t id, Foldable t, HasSignature sig id) => sig -> Term t v -> Bool
-isConstructor sig t = (`Set.member` getConstructorSymbols sig) `all` collectIds t
-isDefined = (not.) . isConstructor
+isRootDefined :: (Ord id, HasId t id, HasSignature sig id) => sig -> Term t v -> Bool
+isRootDefined sig t
+   | Just id <- rootSymbol t = id `Set.member` getDefinedSymbols sig
+   | otherwise = False
 
 collectIds :: (Foldable t, HasId t id) => Term t v -> [id]
 collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toList t))
