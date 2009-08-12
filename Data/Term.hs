@@ -11,7 +11,7 @@ module Data.Term (
 -- * Subterms
      subterms, properSubterms, directSubterms, someSubterm, mapSubterms, mapMSubterms, collect,
 -- * Positions
-     Position, positions, (!), (!*), updateAt, updateAt',
+     Position, positions, (!), (!*), (!?), updateAt, updateAt',
 -- * Variables
      isVar, vars, isLinear,
 -- * Annotating terms
@@ -117,16 +117,29 @@ positions :: (Functor f, Foldable f) => Term f v -> [Position]
 positions = foldFree (const []) f where
     f x = [] : concat (zipWith (\i pp -> map (i:) pp) [1..] (toList x))
 
+-- | get subterm at position or fail with error
 (!) :: Foldable f => Term f v -> Position -> Term f v
 Impure t ! (i:ii) = (toList t !! (i-1)) ! ii
 t        ! []     = t
 _        ! _      = error "(!): invalid position"
 
-(!*) :: (Monad m, Foldable f) => Term f v -> Position -> m(Term f v)
-Impure t !* (i:ii) = (toList t !! (i-1)) !* ii
-t        !* []     = return t
-_        !* _      = fail "(!): invalid position"
+-- | t !? pos returns the deepest subterm at position p and some p' where pos = p.p'
+(!?) :: (Monad m, Foldable f) => Term f v -> Position -> m (Term f v, Position)
+Impure t !? (i:ii) = do {x <- toList t !!* (i-1); x !? ii}
+t        !? []     = return (t,[])
+t@Pure{} !? pos    = return (t,pos)
+_        !? _      = fail "(!?): invalid position"
 
+(!*) :: (Monad m, Foldable f) => Term f v -> Position -> m(Term f v)
+Impure t !* (i:ii) = do {x <- toList t !!* (i-1); x !* ii}
+t        !* []     = return t
+_        !* _      = fail "(!*): invalid position"
+
+infixr 4 !!*
+(!!*) :: Monad m => [a] -> Int -> m a
+x:_  !!* 0 = return x
+_:xx !!* i = xx !!* i - 1
+[]   !!* _ = fail "!!*: index too large"
 
 -- | Updates the subterm at the position given
 --   A failure to reach the position given results in a runtime error
