@@ -233,4 +233,4 @@ equiv' :: forall termF var t.
          (Ord var, Enum var, Ord (Term termF var),
          GetUnifier termF var t, GetVars var t, GetFresh termF var t) => t -> t -> Bool
 equiv' t u = maybe False isRenaming (getUnifier (getVariant t u) u)
-equiv2' t u = let t' = getVariant t u in matches' t' u
+equiv2' t u = let t' = getVariant t u in matches' t' u && matches' u t'
