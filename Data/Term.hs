@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, TypeSynonymInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE CPP #-}
 
@@ -207,13 +208,18 @@ annotateWithPosV= go [] where
 -- -----
 -- * Ids
 -- -----
-class Functor f => HasId f id | f -> id where getId :: f a -> Maybe id
-instance HasId f id => HasId (Free f) id where getId = evalFree (const Nothing) getId
+class (Functor f, Ord (TermId f)) => HasId f where
+    type TermId f :: *
+    getId :: f a -> Maybe (TermId f)
+
+instance HasId f => HasId (Free f) where
+    type TermId (Free f) = TermId f
+    getId = evalFree (const Nothing) getId
 
 class MapId f where mapId :: (id -> id') -> f id a -> f id' a
 instance Bifunctor f => MapId f where mapId f = bimap f id
 
-rootSymbol :: HasId f id => Term f v -> Maybe id
+rootSymbol :: HasId f => Term f v -> Maybe (TermId f)
 rootSymbol = getId
 
 mapRootSymbol :: (Functor (f id), MapId f) => (id -> id) -> Term (f id) v -> Term (f id) v

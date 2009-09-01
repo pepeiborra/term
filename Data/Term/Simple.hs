@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
 import Control.Monad.Free
@@ -40,7 +41,10 @@ instance Eq id => Unify (TermF id) where
    zipTermM_ f (Term f1 tt1) (Term f2 tt2) | f1 == f2 = zipWithM_ f tt1 tt2
                                            | otherwise = fail "structure mismatch"
 
-instance HasId (TermF id) id where getId (Term id _) = Just id
+instance Ord id =>  HasId (TermF id) where
+    type TermId (TermF id) = id
+    getId (Term id _) = Just id
+
 instance MapId TermF where mapId f (Term id tt) = Term (f id) tt
 
 instance (Ppr a, Ppr id) => Ppr (TermF id a) where

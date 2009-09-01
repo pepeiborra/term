@@ -4,6 +4,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
 
 {-| This module works with an abstract notion of rule.
@@ -18,7 +20,7 @@
 -}
 module Data.Term.Rules
   (RuleF(..), Rule, left, right, HasRules(..), swapRule, IsTRS(..),
-   Signature(..), allSymbols, HasSignature(..),
+   Signature(..), mapSignature, allSymbols, HasSignature(..),
    getArity, getArities, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
    isConstructorTerm, isRootDefined, collectIds,
    GetVars(..),
@@ -67,9 +69,10 @@ instance (Eq v, Traversable t, Eq (t())) => GetMatcher t v (Rule t v) where getM
 type Rule t v = RuleF (Term t v)
 
 {-# RULES "rules/tRS" forall x. tRS (rules x) = x #-}
+{-# RULES "tRS/rules" forall x. rules (tRS x) = x #-}
 
 class HasRules t v trs | trs -> t v where rules :: trs -> [Rule t v]
-class HasRules t v trs => IsTRS t v trs where tRS :: [Rule t v] -> trs
+class HasRules t v trs => IsTRS t v trs | trs -> t v where tRS :: [Rule t v] -> trs
 
 instance HasRules t v (Rule t v)            where rules = (:[])
 instance HasRules t v a => HasRules t v [a] where rules = foldMap rules
@@ -122,29 +125,29 @@ getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ Set.toList (getVars t))
 data Signature id = Sig {constructorSymbols, definedSymbols :: Map id Int}
    deriving (Eq, Ord, Show)
 
-allSymbols :: Ord id => Signature id -> Set id
-allSymbols s = Map.keysSet(definedSymbols s) `mappend` Map.keysSet (constructorSymbols s)
-
-class HasSignature l id | l -> id where getSignature :: l -> Signature id
-instance HasSignature (Signature id) id where getSignature = id
-
 instance Ord id => Monoid (Signature id) where
     mempty  = Sig mempty mempty
     mappend (Sig c1 s1) (Sig c2 s2) = Sig (mappend c1 c2) (mappend s1 s2)
 
-instance (Foldable t, Ord id, HasId t id) => HasSignature [Rule t v] id where
-  getSignature rules = Sig{ definedSymbols     = filterByKey (`Set.member` dd) all
-                          , constructorSymbols = filterByKey (`Set.notMember` dd) all
-                          }
-    where dd  = Set.fromList [ root | l :-> _ <- rules, let Just root = rootSymbol l]
-          all = Map.fromList [(f,length (directSubterms t))
-                                  | l :-> r <- rules
-                                  , t <- concatMap subterms [l,r]
+instance Ord id => HasSignature (Signature id) where
+    type SignatureId (Signature id) = id
+    getSignature = id
+
+class Ord (SignatureId l) => HasSignature l where
+  type SignatureId l :: *
+  getSignature :: l -> Signature (SignatureId l)
+
+instance (HasId t, Foldable t) => HasSignature (Term t v) where
+  type SignatureId (Term t v) = TermId t
+  getSignature t = Sig{ definedSymbols = Map.empty
+                        , constructorSymbols = all }
+     where
+      all =  Map.fromList [(f,length (directSubterms t))
+                                  | t <- subterms t
                                   , Just f <- [rootSymbol t]]
 
-filterByKey f = Map.filterWithKey (\k _ -> f k)
-
-instance (Foldable t, Ord id, HasId t id) => HasSignature [Term t v] id where
+instance (Foldable t, HasId t) => HasSignature [Term t v] where
+  type SignatureId [Term t v] = TermId t
   getSignature terms = Sig{ definedSymbols     = Map.empty
                           , constructorSymbols = all
                           }
@@ -153,12 +156,41 @@ instance (Foldable t, Ord id, HasId t id) => HasSignature [Term t v] id where
                                   , Just f <- [rootSymbol t]]
 
 
-instance (Foldable t, Ord id, HasId t id) => HasSignature (Set (Rule t v)) id where
+instance (Foldable t,  HasId t) => HasSignature (Rule t v) where
+  type SignatureId (Rule t v) = TermId t
+  getSignature (l :-> r) = Sig{ definedSymbols = Map.singleton d (length $ directSubterms l)
+                              , constructorSymbols = all}
+    where Just d = rootSymbol l
+          all = Map.fromList [(f,length (directSubterms t))
+                                  | t <- concatMap subterms (r : directSubterms l)
+                                  , Just f <- [rootSymbol t]]
+
+instance (Foldable t,  HasId t) => HasSignature [Rule t v] where
+  type SignatureId [Rule t v] = TermId t
+  getSignature rules = Sig{ definedSymbols     = filterByKey (`Set.member` dd) all
+                          , constructorSymbols = filterByKey (`Set.notMember` dd) all
+                          }
+    where
+          filterByKey f = Map.filterWithKey (\k _ -> f k)
+          dd  = Set.fromList [ root | l :-> _ <- rules, let Just root = rootSymbol l]
+          all = Map.fromList [(f,length (directSubterms t))
+                                  | l :-> r <- rules
+                                  , t <- concatMap subterms [l,r]
+                                  , Just f <- [rootSymbol t]]
+
+instance (HasSignature [a]) => HasSignature (Set a) where
+  type SignatureId (Set a) = SignatureId [a]
   getSignature = getSignature . toList
 
-getDefinedSymbols, getConstructorSymbols, getAllSymbols :: (Ord id, HasSignature l id) => l -> Set id
-getArities :: (Ord id, HasSignature sig id) => sig -> Map id Int 
-getArity :: (Ord id, HasSignature sig id, Ppr id) => sig -> id -> Int
+mapSignature :: (Ord id, Ord id') => (id -> id') -> Signature id -> Signature id'
+mapSignature f (Sig cc dd) = Sig (Map.mapKeys f cc) (Map.mapKeys f dd)
+
+allSymbols :: Ord id => Signature id -> Set id
+allSymbols s = Map.keysSet(definedSymbols s) `mappend` Map.keysSet (constructorSymbols s)
+
+getDefinedSymbols, getConstructorSymbols, getAllSymbols :: ( HasSignature l) => l -> Set (SignatureId l)
+getArities :: ( HasSignature sig) => sig -> Map (SignatureId sig) Int
+getArity :: ( HasSignature sig) => sig -> SignatureId sig -> Int
 
 getDefinedSymbols     = Map.keysSet . definedSymbols . getSignature
 getConstructorSymbols = Map.keysSet . constructorSymbols . getSignature
@@ -166,19 +198,19 @@ getAllSymbols         = allSymbols . getSignature
 
 getArities sig = constructorSymbols `mappend` definedSymbols
   where Sig{..} = getSignature sig
-getArity l f = fromMaybe (error ("getArity: symbol " ++ show (ppr f) ++ " not in signature"))
+getArity l f = fromMaybe (error ("getArity: symbol not in signature"))
                          (Map.lookup f constructorSymbols `mplus` Map.lookup f definedSymbols)
   where  Sig{..} = getSignature l
 
-isConstructorTerm :: (Ord id, HasId t id, Foldable t, HasSignature sig id) => sig -> Term t v -> Bool
+isConstructorTerm :: (Foldable t, HasId t, HasSignature sig, TermId t ~ SignatureId sig) => sig -> Term t v -> Bool
 isConstructorTerm sig t = (`Set.member` getConstructorSymbols sig) `all` collectIds t
 
-isRootDefined :: (Ord id, HasId t id, HasSignature sig id) => sig -> Term t v -> Bool
+isRootDefined :: ( HasId t, HasSignature sig, TermId t ~ SignatureId sig) => sig -> Term t v -> Bool
 isRootDefined sig t
    | Just id <- rootSymbol t = id `Set.member` getDefinedSymbols sig
    | otherwise = False
 
-collectIds :: (Foldable t, HasId t id) => Term t v -> [id]
+collectIds :: (Foldable t, HasId t) => Term t v -> [TermId t]
 collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toList t))
 
 -- -------------
