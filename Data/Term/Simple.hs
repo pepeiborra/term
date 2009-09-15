@@ -8,10 +8,9 @@ import Data.Bifunctor
 import Data.Char (isAlpha)
 import Data.Foldable (Foldable(..), msum)
 import Data.Traversable
-import Text.PrettyPrint
+import Text.PrettyPrint.HughesPJClass
 
 import Data.Term
-import Data.Term.Ppr
 
 data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show)
 type Term1 id = Free (TermF id)
@@ -47,15 +46,15 @@ instance Ord id =>  HasId (TermF id) where
 
 instance MapId TermF where mapId f (Term id tt) = Term (f id) tt
 
-instance (Ppr a, Ppr id) => Ppr (TermF id a) where
-    ppr (Term n []) = ppr n
-    ppr (Term n [x,y]) | not (any isAlpha $ show $ ppr n) = ppr x <+> ppr n <+> ppr y
-    ppr (Term n tt) = ppr n <> parens (hcat$ punctuate comma$ map ppr tt)
+instance (Pretty a, Pretty id) => Pretty (TermF id a) where
+    pPrint (Term n []) = pPrint n
+    pPrint (Term n [x,y]) | not (any isAlpha $ show $ pPrint n) = pPrint x <+> pPrint n <+> pPrint y
+    pPrint (Term n tt) = pPrint n <> parens (hcat$ punctuate comma$ map pPrint tt)
 
-instance Ppr a => Ppr (TermF String a) where
-    ppr (Term n []) = text n
-    ppr (Term n [x,y]) | not (any isAlpha n) = ppr x <+> text n <+> ppr y
-    ppr (Term n tt) = text n <> parens (hcat$ punctuate comma $ map ppr tt)
+instance Pretty a => Pretty (TermF String a) where
+    pPrint (Term n []) = text n
+    pPrint (Term n [x,y]) | not (any isAlpha n) = pPrint x <+> text n <+> pPrint y
+    pPrint (Term n tt) = text n <> parens (hcat$ punctuate comma $ map pPrint tt)
 
 -- Functor boilerplate
 -- --------------------

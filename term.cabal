@@ -19,7 +19,7 @@ Flag logict
 
 Library
   buildable: True
-  build-depends: base, containers, pretty, control-monad-free
+  build-depends: base, containers, prettyclass, control-monad-free
   if flag(transformers)
      build-depends: transformers
      cpp-options: -DTRANSFORMERS
