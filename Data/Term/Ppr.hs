@@ -17,7 +17,7 @@ import Data.Term.IOVar
 --instance Pretty Char where ppr = char
 instance Pretty Doc    where pPrint d = d
 
-instance Pretty a => Pretty (Set a)            where pPrint = braces   . hcat . punctuate comma . map pPrint . Set.toList
+instance Pretty a => Pretty (Set a)            where pPrintPrec l _ = pPrintList l .  Set.toList
 instance (Pretty k, Pretty a) => Pretty (Map k a) where
     pPrint m = vcat$ concat [[pPrint k, nest 2 (pPrint v)] | (k,v) <-  Map.toList m]
 
