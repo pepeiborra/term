@@ -12,7 +12,7 @@ module Data.Term (
 -- * Subterms
      subterms, properSubterms, directSubterms, someSubterm, mapSubterms, mapMSubterms, collect,
 -- * Positions
-     Position, positions, (!), (!*), (!?), updateAt, updateAt',
+     Position, positions, (!), (!*), (!?), updateAt, updateAt', occurrences,
 -- * Variables
      isVar, vars, isLinear,
 -- * Annotating terms
@@ -204,6 +204,9 @@ annotateWithPosV :: Traversable f => Term f v -> Term f (WithNote Position v)
 annotateWithPosV= go [] where
      go pos = evalFree (\v -> return $ Note (pos,v))
                        (\t -> Impure (unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] t)) -- TODO Remove the append at tail
+
+occurrences :: (Traversable f, Eq (Term f v)) => Term f v -> Term f v -> [Position]
+occurrences sub parent = [ note t | t <- subterms(annotateWithPos parent), dropNote t == sub]
 
 -- -----
 -- * Ids
