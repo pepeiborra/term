@@ -213,7 +213,7 @@ collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toL
 -- * Unification
 -- -------------
 getUnifier :: (GetUnifier termF var t, Ord var) => t -> t -> Maybe (Substitution termF var)
-getUnifier t u = execStateT (getUnifierM t u) mempty
+getUnifier t u = fmap zonkSubst $ execStateT (getUnifierM t u) mempty
 
 unifies' :: forall termF v t. (Ord v, GetUnifier termF v t) => t -> t -> Bool
 unifies' s t = isJust (getUnifier s t)
