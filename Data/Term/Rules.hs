@@ -158,12 +158,19 @@ instance (Foldable t, HasId t) => HasSignature [Term t v] where
 
 instance (Foldable t,  HasId t) => HasSignature (Rule t v) where
   type SignatureId (Rule t v) = TermId t
-  getSignature (l :-> r) = Sig{ definedSymbols = Map.singleton d (length $ directSubterms l)
-                              , constructorSymbols = all}
-    where Just d = rootSymbol l
-          all = Map.fromList [(f,length (directSubterms t))
-                                  | t <- concatMap subterms (r : directSubterms l)
-                                  , Just f <- [rootSymbol t]]
+  getSignature (l :-> r)
+    | Just d <- rootSymbol l
+    = Sig{ definedSymbols = Map.singleton d (length $ directSubterms l)
+         , constructorSymbols = all}
+    | otherwise
+    = Sig { definedSymbols = Map.empty
+          , constructorSymbols = Map.fromList [(f,length (directSubterms t))
+                                               | t <- concatMap subterms [l,r]
+                                               , Just f <- [rootSymbol t]]}
+    where
+      all = Map.fromList [(f,length (directSubterms t))
+                          | t <- concatMap subterms (r : directSubterms l)
+                          , Just f <- [rootSymbol t]]
 
 instance (Foldable t,  HasId t) => HasSignature [Rule t v] where
   type SignatureId [Rule t v] = TermId t
