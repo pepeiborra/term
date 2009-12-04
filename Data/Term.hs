@@ -12,7 +12,7 @@ module Data.Term (
 -- * Subterms
      subterms, properSubterms, directSubterms, someSubterm, mapSubterms, mapMSubterms, collect,
 -- * Positions
-     Position, positions, (!), (!*), (!?), updateAt, updateAt',
+     Position, positions, (!), (!*), (!?), updateAt, updateAt', occurrences,
 -- * Variables
      isVar, vars, isLinear,
 -- * Annotating terms
@@ -205,6 +205,9 @@ annotateWithPosV= go [] where
      go pos = evalFree (\v -> return $ Note (pos,v))
                        (\t -> Impure (unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] t)) -- TODO Remove the append at tail
 
+occurrences :: (Traversable f, Eq (Term f v)) => Term f v -> Term f v -> [Position]
+occurrences sub parent = [ note t | t <- subterms(annotateWithPos parent), dropNote t == sub]
+
 -- -----
 -- * Ids
 -- -----
@@ -359,7 +362,7 @@ unifies :: forall termF var. (Unify termF, Ord var) => Term termF var -> Term te
 unifies t u = isJust (unify t u)
 
 unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
-unify t u = execStateT (unifyM t u) mempty
+unify t u = fmap zonkSubst (execStateT (unifyM t u) mempty)
 
 class (Traversable termF, Eq (termF ())) => Unify termF
   where unifyM :: (MonadEnv termF var m, Ord var) => Term termF var -> Term termF var -> m ()

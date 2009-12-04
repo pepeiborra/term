@@ -46,10 +46,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Text.PrettyPrint.HughesPJClass
 
 import Data.Term
-import Data.Term.Ppr
 import Data.Term.Var
 import Data.Term.IOVar
 
@@ -77,8 +75,6 @@ class HasRules t v trs => IsTRS t v trs | trs -> t v where tRS :: [Rule t v] -> 
 instance HasRules t v (Rule t v)            where rules = (:[])
 instance HasRules t v a => HasRules t v [a] where rules = foldMap rules
 instance IsTRS    t v [Rule t v]            where tRS   = id
-instance Pretty a => Pretty (RuleF a) where
-    pPrint (l :-> r) = pPrint l <+> text "->" <+> pPrint r
 
 swapRule :: RuleF a -> RuleF a
 swapRule (l :-> r) = r :-> l
@@ -224,7 +220,7 @@ collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toL
 -- * Unification
 -- -------------
 getUnifier :: (GetUnifier termF var t, Ord var) => t -> t -> Maybe (Substitution termF var)
-getUnifier t u = execStateT (getUnifierM t u) mempty
+getUnifier t u = fmap zonkSubst $ execStateT (getUnifierM t u) mempty
 
 unifies' :: forall termF v t. (Ord v, GetUnifier termF v t) => t -> t -> Bool
 unifies' s t = isJust (getUnifier s t)
