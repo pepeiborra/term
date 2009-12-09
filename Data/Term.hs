@@ -18,7 +18,7 @@ module Data.Term (
 -- * Annotating terms
      WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos, annotateWithPosV,
 -- * Ids
-     HasId(..), MapId(..), rootSymbol, mapRootSymbol, mapTermSymbols,
+     HasId(..), MapId(..), rootSymbol, mapRootSymbol, mapTermSymbols, mapTermSymbolsM,
 -- * Matching & Unification (without occurs check)
      Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, equiv2, EqModulo(..),
 -- * Substitutions
@@ -31,9 +31,9 @@ module Data.Term (
      ) where
 
 import Control.Applicative
-import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, evalFree, isPure)
+import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, mapFreeM, evalFree, isPure)
 import Control.Monad.Free.Zip
-import Control.Monad (liftM, join, MonadPlus(..), msum, when)
+import Control.Monad.Identity (runIdentity, liftM, join, MonadPlus(..), msum, when)
 import Control.Monad.Trans (lift)
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
@@ -219,8 +219,11 @@ instance HasId f => HasId (Free f) where
     type TermId (Free f) = TermId f
     getId = evalFree (const Nothing) getId
 
-class MapId f where mapId :: (id -> id') -> f id a -> f id' a
-instance Bifunctor f => MapId f where mapId f = bimap f id
+class MapId f where mapId  :: (id -> id') -> f id a -> f id' a
+                    mapIdM :: (Monad m) => (id -> m id') -> f id a -> m(f id' a)
+                    mapId f = runIdentity  . mapIdM (return.f)
+
+instance BifunctorM f => MapId f where mapIdM f = bimapM f return
 
 rootSymbol :: HasId f => Term f v -> Maybe (TermId f)
 rootSymbol = getId
@@ -230,6 +233,9 @@ mapRootSymbol f = evalFree return (Impure . mapId f)
 
 mapTermSymbols :: (Functor (f id), Functor (f id'), MapId f) => (id -> id') -> Term (f id) v -> Term (f id') v
 mapTermSymbols f = mapFree (mapId f)
+
+mapTermSymbolsM :: (Traversable (f id), Functor (f id'), MapId f, Monad t) => (id -> t id') -> Term (f id) v -> t(Term (f id') v)
+mapTermSymbolsM f = mapFreeM (mapIdM f)
 
 -- ---------------
 -- * Substitutions
