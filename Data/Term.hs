@@ -292,12 +292,13 @@ zonkTerm subst fv = (>>= f) where
            Nothing -> return (fv v)
            Just t  -> zonkTerm subst fv t
 
-zonkTermM :: (Traversable termF, Ord var, Monad m) =>
-             Substitution termF var -> (var -> m var') -> Term termF var -> m(Term termF var')
-zonkTermM subst fv = liftM join . mapM f where
-   f v = case lookupSubst v subst of
-           Nothing -> Pure `liftM` fv v
-           Just t  -> zonkTermM subst fv t
+zonkTermM :: (Traversable termF, Ord var, MonadEnv termF var m) =>
+             (var -> m var') -> Term termF var -> m(Term termF var')
+zonkTermM fv = liftM join . mapM f where
+   f v = do val <- lookupVar v
+            case val of
+              Nothing -> Pure `liftM` fv v
+              Just t  -> zonkTermM fv t
 
 zonkSubst :: (Functor termF, Ord var) => Substitution termF var -> Substitution termF var
 zonkSubst s = liftSubst (Map.map (zonkTerm s id)) s
