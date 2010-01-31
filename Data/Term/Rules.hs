@@ -100,19 +100,19 @@ instance GetVars (IOVar t) (IOVar t) where getVars = Set.singleton
 -- ------------------------------------------
 
 class (Traversable termF) => GetFresh termF var thing | thing -> termF var where
-    getFreshM :: (MonadFresh var m, MonadEnv termF var m) => thing -> m thing
+    getFreshM :: (MonadVariant var m, MonadEnv termF var m) => thing -> m thing
 instance (Traversable termF) => GetFresh termF var (Term termF var) where
     getFreshM = fresh
 instance (Traversable termF, GetFresh termF var t) => GetFresh termF var [t] where
     getFreshM = getFreshMdefault
 
-getFreshMdefault :: (Traversable t, GetFresh term v a, MonadFresh v m, MonadEnv term v m) => t a -> m (t a)
+getFreshMdefault :: (Traversable t, GetFresh term v a, MonadVariant v m, MonadEnv term v m) => t a -> m (t a)
 getFreshMdefault = T.mapM getFreshM
 
-getFresh :: forall t v m thing. (Ord v, MonadFresh v m, GetFresh t v thing) => thing -> m thing
+getFresh :: forall t v m thing. (Ord v, MonadVariant v m, GetFresh t v thing) => thing -> m thing
 getFresh t = evalStateT (getFreshM t) (mempty :: Substitution t v)
 
-getVariant :: (Enum v, GetFresh termF v t, GetVars v t') => t -> t' -> t
+getVariant :: (Enum v, Rename v, GetFresh termF v t, GetVars v t') => t -> t' -> t
 getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ Set.toList (getVars t))
 
 -- ---------------------
@@ -267,12 +267,12 @@ getMatcherMdefault t u
 -- * Equivalence up to renaming
 -- ----------------------------
 --instance (Ord v, Enum v, Ord (Term t v), GetUnifier t v thing, GetVars v thing, GetFresh t v thing) =>
-instance (Enum v, GetMatcher t v thing, GetVars v thing, GetFresh t v thing) =>
+instance (Enum v, Rename v, GetMatcher t v thing, GetVars v thing, GetFresh t v thing) =>
          Eq (EqModulo thing) where
            EqModulo t1 == EqModulo t2 = t1 `equiv2'` t2
 
 equiv' :: forall termF var t.
-         (Ord var, Enum var, Ord (Term termF var),
+         (Ord var, Enum var, Rename var, Ord (Term termF var),
          GetUnifier termF var t, GetVars var t, GetFresh termF var t) => t -> t -> Bool
 equiv' t u = maybe False isRenaming (getUnifier (getVariant t u) u)
 equiv2' t u = let t' = getVariant t u in matches' t' u && matches' u t'

@@ -21,7 +21,7 @@ matchesIO :: (Match t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> 
 matchesIO t u = (matchM t u >> return True) `catch` \_ -> return False
 
 instantiate :: (Traversable term,
-                MonadFresh (IOVar term) m, MonadEnv term (Either var (IOVar term)) m) =>
+                MonadVariant (IOVar term) m, MonadEnv term (Either var (IOVar term)) m) =>
                Free term var -> m (Free term (IOVar term))
 instantiate = freshWith (flip const)
 
@@ -37,9 +37,12 @@ getInst (Subst s) = do
     fromLeft   = either id (error "getInst")
     secondM f (a,b) = f b >>= \b' -> return (a,b')
 
+instance Rename (IOVar t) where rename _ = id
+
 instance Traversable termF => MonadEnv termF (IOVar termF) IO where
   varBind (IOVar v) t = writeIOStableRef v (Just t)
   lookupVar (IOVar v) = readIOStableRef  v
 
-instance MonadFresh (IOVar termF) IO where
+instance MonadVariant (IOVar termF) IO where
   freshVar = IOVar `liftM` newIOStableRef Nothing
+  renaming _ = freshVar

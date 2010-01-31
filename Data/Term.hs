@@ -14,7 +14,7 @@ module Data.Term (
 -- * Positions
      Position, positions, (!), (!*), (!?), updateAt, updateAt', occurrences,
 -- * Variables
-     isVar, vars, isLinear,
+     Rename(..), isVar, vars, isLinear,
 -- * Annotating terms
      WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos, annotateWithPosV,
 -- * Ids
@@ -27,7 +27,7 @@ module Data.Term (
 -- Environment monad
      MonadEnv(..), find',
 -- Fresh monad
-     MonadFresh(..), fresh, freshWith, variant
+     MonadVariant(..), fresh, freshWith, variant
      ) where
 
 import Control.Applicative
@@ -35,6 +35,7 @@ import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, mapFreeM, eva
 import Control.Monad.Free.Zip
 import Control.Monad.Identity (runIdentity, liftM, join, MonadPlus(..), msum, when)
 import Control.Monad.Trans (lift)
+
 #ifdef TRANSFORMERS
 import Control.Monad.Trans.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
 import Control.Monad.Trans.List(ListT)
@@ -48,6 +49,7 @@ import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWS,RWST)
 import Control.Monad.Writer(WriterT)
 #endif
+
 import Data.Bifunctor
 import Data.Foldable (Foldable(..), toList)
 import Data.List ((\\))
@@ -433,42 +435,64 @@ instance (Traversable termF, Eq (termF ())) =>  Match termF where
 -- -----------------------------
 
 equiv :: forall termF var.
-         (Ord var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
+         (Ord var, Rename var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
 equiv t u = maybe False isRenaming (match (variant t u) u)
 
 equiv2 t u = let t' = variant t u in matches t' u && matches u t'
 
 newtype EqModulo a = EqModulo {eqModulo::a}
-instance (Ord v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
+instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
     EqModulo t1 == EqModulo t2 = t1 `equiv2` t2
 
 -- --------------------------------
 -- * Variants of terms and rules
 -- --------------------------------
 
-class Monad m => MonadFresh var m | m -> var where freshVar :: m var
-instance (Enum v, Monad m) => MonadFresh v (StateT (Sum Int) m) where freshVar = do { Sum i <- get; put (Sum $ succ i); return (toEnum i)}
-instance Monad m => MonadFresh v (StateT [v] m)     where freshVar = do { x:xx <- get; put xx; return x}
-instance Monad m => MonadFresh v (StateT (a,[v]) m) where freshVar = withSnd freshVar
-instance (Monoid w, Monad m) => MonadFresh v (RWST r w [v] m) where freshVar = do { x:xx <- get; put xx; return x}
+-- | Renaming of variables
+class Rename v where
+    rename :: v      -- ^ Original variable
+           -> v      -- ^ Fresh variable
+           -> v      -- ^ Result of renaming the original variable to the fresh variable
+
+class (Rename var, Monad m) => MonadVariant var m | m -> var where
+    freshVar :: m var
+    renaming :: var -> m var
+    renaming v = do {v' <- freshVar; return $ rename v v'}
+
+instance (Enum v, Rename v, Monad m) => MonadVariant v (StateT (Sum Int) m) where
+    freshVar = do { Sum i <- get; put (Sum $ succ i); return (toEnum i)}
+
+instance (Rename v, Monad m) => MonadVariant v (StateT [v] m) where
+    freshVar = do { x:xx <- get; put xx; return x}
+
+instance (Rename v, Monad m) => MonadVariant v (StateT (a,[v]) m) where
+    freshVar = withSnd freshVar
+
+instance (Monoid w, Rename v, Monad m) => MonadVariant v (RWST r w [v] m) where
+    freshVar = do { x:xx <- get; put xx; return x}
 
 #ifndef TRANSFORMERS
-instance MonadFresh v (State [v])     where freshVar = do { x:xx <- get; put xx; return x}
-instance MonadFresh v (State (a,[v])) where freshVar = do {(s,x:xx) <- get; put (s,xx); return x}
-instance (Monoid w) => MonadFresh v (RWS r w [v]) where freshVar = do { x:xx <- get; put xx; return x}
+instance Rename v => MonadVariant v (State [v])     where
+    freshVar = do { x:xx <- get; put xx; return x}
+
+instance Rename v => MonadVariant v (State (a,[v])) where
+    freshVar = do {(s,x:xx) <- get; put (s,xx); return x}
+
+instance (Rename v, Monoid w) => MonadVariant v (RWS r w [v]) where
+    freshVar = do { x:xx <- get; put xx; return x}
 #endif
 
-fresh ::  (Traversable t, MonadEnv t var m, MonadFresh var m) =>
+fresh ::  (Traversable t, MonadEnv t var m, MonadVariant var m) =>
          Term t var -> m (Term t var)
 fresh = go where
   go  = liftM join . T.mapM f
   f v = do
           mb_v' <- lookupVar v
           case mb_v' of
-            Nothing -> do {v' <- freshVar; varBind v (return v'); return (return v')}
+            Nothing -> do {v' <- renaming v; varBind v (return v'); return (return v')}
             Just v' -> return v'
 
-freshWith :: (Traversable t, MonadEnv t (Either var var') m, MonadFresh var' m) =>
+freshWith :: (Traversable t, MonadEnv t (Either var var') m, MonadVariant var' m) =>
                (var -> var' -> var') -> Term t var -> m (Term t var')
 freshWith fv = go where
   go  = liftM join . T.mapM f
@@ -479,7 +503,7 @@ freshWith fv = go where
             Just (Pure (Right v')) -> return (Pure v')
             _ -> error "impossible: fresh'"
 
-variant :: forall v t t'. (Ord v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
+variant :: forall v t t'. (Ord v, Rename v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
 variant u t = fresh u `evalStateT` (mempty :: Substitution t v) `evalState` ([toEnum 0..] \\ vars t)
 
 -- ------------------------------
@@ -505,7 +529,18 @@ instance (Monoid w, Functor t, MonadEnv t var m) => MonadEnv t var (RWST r w s m
   varBind = (lift.) . varBind
   lookupVar = lift . lookupVar
 
-instance MonadFresh var m => MonadFresh var (ListT    m) where freshVar = lift freshVar
-instance MonadFresh var m => MonadFresh var (StateT s m) where freshVar = lift freshVar
-instance (Monoid w, MonadFresh var m) => MonadFresh var (RWST r w s m) where freshVar = lift freshVar
-instance (MonadFresh var m,Monoid w) => MonadFresh var (WriterT w m) where freshVar = lift freshVar
+instance MonadVariant var m => MonadVariant var (ListT    m) where
+    freshVar = lift freshVar
+    renaming = lift . renaming
+
+instance MonadVariant var m => MonadVariant var (StateT s m) where
+    freshVar = lift freshVar
+    renaming = lift . renaming
+
+instance (Monoid w, MonadVariant var m) => MonadVariant var (RWST r w s m) where
+    freshVar = lift freshVar
+    renaming = lift . renaming
+
+instance (MonadVariant var m,Monoid w) => MonadVariant var (WriterT w m) where
+    freshVar = lift freshVar
+    renaming = lift . renaming

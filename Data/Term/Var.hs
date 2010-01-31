@@ -1,6 +1,7 @@
 module Data.Term.Var where
 
 import Control.Monad.Free
+import Data.Term
 
 data Var = VName String | VAuto Int deriving (Eq, Ord, Show)
 
@@ -14,3 +15,5 @@ var  = return . VName
 
 var' :: Functor f => Int -> Free f Var
 var' = return . VAuto
+
+instance Rename Var where rename _ = id
