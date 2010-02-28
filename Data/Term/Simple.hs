@@ -44,7 +44,8 @@ instance Ord id =>  HasId (TermF id) where
     type TermId (TermF id) = id
     getId (Term id _) = Just id
 
-instance MapId TermF where mapId f (Term id tt) = Term (f id) tt
+instance MapId TermF where
+    mapIdM f (Term id tt) = (`Term` tt) `liftM` f id
 
 instance (Pretty a, Pretty id) => Pretty (TermF id a) where
     pPrint (Term n []) = pPrint n
