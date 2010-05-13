@@ -1,5 +1,10 @@
 {-# LANGUAGE CPP #-}
-module Data.Term.Rewriting where
+module Data.Term.Rewriting (
+ -- * One step
+      rewrite1, rewrite1', rewrite1p,
+ -- * Big step
+      rewrites, reduce
+ ) where
 
 import Control.Applicative
 #ifdef LOGICT
@@ -20,6 +25,13 @@ import Data.Term.Utils
 rewrite1 :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m(Term t v)
 rewrite1 rr t = (snd<$>rewriteStep rr t) `evalStateT` freshvars
   where freshvars = [toEnum 0 ..] \\ vars t
+
+rewrite1' :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m(Position, Term t v)
+rewrite1' rr t = rewriteStep rr t `evalStateT` freshvars
+  where freshvars = [toEnum 0 ..] \\ vars t
+
+rewrite1p :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> Position -> m(Term t v)
+rewrite1p rr t p = liftM fst $ updateAtM p (rewriteTop rr) t
 
 -- | Reflexive, Transitive closure
 rewrites :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v)
