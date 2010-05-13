@@ -14,7 +14,7 @@ module Data.Term (
      subterms, properSubterms, directSubterms, mapSubterms, mapMSubterms, collect,
      someSubterm, someSubterm', someSubtermDeep,
 -- * Positions
-     Position, positions, (!), (!*), (!?), updateAt, updateAt', occurrences,
+     Position, positions, (!), (!*), (!?), updateAt, updateAt', updateAtM, occurrences,
 -- * Variables
      Rename(..), isVar, vars, isLinear,
 -- * Annotating terms
@@ -187,9 +187,14 @@ updateAt _      _          _ = error "updateAt: invalid position given"
 --   Failure is contained inside the monad
 updateAt'  :: (Traversable f, Monad m) =>
               Position -> (Term f v -> Term f v) -> Term f v -> m (Term f v, Term f v)
-updateAt' pos f t = runStateT (go pos t) t where
+updateAt' pos f = updateAtM pos (return . f)
+
+-- | Monadic version of @updateAt'@
+updateAtM  :: (Traversable f, Monad m) =>
+              Position -> (Term f v -> m(Term f v)) -> Term f v -> m (Term f v, Term f v)
+updateAtM pos f t = runStateT (go pos t) t where
  go (0:_)  _          = fail "updateAt: 0 is not a position!"
- go []     t          = put t >> return (f t)
+ go []     t          = put t >> lift(f t)
  go (i:ii) (Impure t) = Impure `liftM` unsafeZipWithGM g [1..] t
                                where g j st = if i==j then go ii st else return st
  go _      _          = fail "updateAt: invalid position given"
