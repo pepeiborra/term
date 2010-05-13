@@ -18,14 +18,21 @@ import Prelude hiding (mapM)
 size :: Foldable f => f a -> Int
 size = length . toList
 
+-- | Monadic version of interleave
 interleaveM :: (Monad m, Traversable t) => (a -> m a) -> t a -> [m (t a)]
 interleaveM f x = liftM T.sequence (interleave f return x)
+
+-- | Using the analogy of functors as containers,
+--   the @interleave f def@ of the functor carrying {x,y,z...}
+--   is the list of containers
+-- [ {f x, def y, def z}, {def f, g y, def z}, {def f, def g, f z}]
 
 interleave :: (Traversable f) => (a -> b) -> (a -> b) -> f a -> [f b]
 interleave f def x = [unsafeZipWithG (indexed f i) [0..] x | i <- [0..size x - 1]]
   where indexed f i j x = if i==j then f x else def x
 
-unsafeZipWithGM :: (Traversable t1, Traversable t2, Monad m) => (a -> b -> m c) -> t1 a -> t2 b -> m(t2 c)
+unsafeZipWithGM :: (Traversable t1, Traversable t2, Monad m) =>
+                   (a -> b -> m c) -> t1 a -> t2 b -> m (t2 c)
 unsafeZipWithGM f t1 t2  = evalStateT (mapM zipG' t2) (toList t1)
        where zipG' y = do (x:xx) <- get
                           put xx

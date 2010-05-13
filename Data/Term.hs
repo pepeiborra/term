@@ -161,6 +161,7 @@ t        !? []     = return (t,[])
 t@Pure{} !? pos    = return (t,pos)
 _        !? _      = fail "(!?): invalid position"
 
+-- | get subterm at position or call @fail@ in @m@
 (!*) :: (Monad m, Foldable f) => Term f v -> Position -> m(Term f v)
 Impure t !* (i:ii) = do {x <- toList t !!* (i-1); x !* ii}
 t        !* []     = return t

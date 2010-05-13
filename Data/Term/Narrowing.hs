@@ -25,10 +25,8 @@ import Control.Monad.Trans.State
 import Control.Monad.State
 #endif
 import Data.Foldable (Foldable)
-import Data.List
 import Data.Monoid
 import Data.Traversable (Traversable)
-import qualified Data.Traversable as T
 
 import Data.Term
 import Data.Term.Rules
