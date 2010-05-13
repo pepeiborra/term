@@ -4,13 +4,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE CPP #-}
 
 module Data.Term (
 -- * Terms
      Term, Free(..), foldTerm, foldTermM, mapTerm, evalTerm,
 -- * Subterms
-     subterms, properSubterms, directSubterms, someSubterm, mapSubterms, mapMSubterms, collect,
+     subterms, properSubterms, directSubterms, mapSubterms, mapMSubterms, collect,
+     someSubterm, someSubterm', someSubtermDeep,
 -- * Positions
      Position, positions, (!), (!*), (!?), updateAt, updateAt', occurrences,
 -- * Variables
@@ -37,16 +39,16 @@ import Control.Monad.Identity (runIdentity, liftM, join, MonadPlus(..), msum, wh
 import Control.Monad.Trans (lift)
 
 #ifdef TRANSFORMERS
-import Control.Monad.Trans.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
+import Control.Monad.Trans.State(State, StateT(..), get, put, modify, evalState, evalStateT, execStateT)
 import Control.Monad.Trans.List(ListT)
 import Control.Monad.Trans.Reader(ReaderT)
-import Control.Monad.Trans.RWS(RWST)
+import Control.Monad.Trans.RWS(RWST, ask, evalRWST)
 import Control.Monad.Trans.Writer(WriterT)
 #else
-import Control.Monad.State(State, StateT(..), get, put, evalState, evalStateT, execStateT)
+import Control.Monad.State(State, StateT(..), get, put, modify, evalState, evalStateT, execStateT)
 import Control.Monad.List(ListT)
 import Control.Monad.Reader(ReaderT)
-import Control.Monad.RWS(RWS,RWST)
+import Control.Monad.RWS(RWS,RWST, ask, evalRWST)
 import Control.Monad.Writer(WriterT)
 #endif
 
@@ -97,6 +99,32 @@ mapMSubterms f = evalTerm (return.return) (liftM Impure . mapM f)
 someSubterm :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Term f a)
 someSubterm f  = evalFree (return.return) (msum . liftM2 Impure . interleaveM f)
 
+-- | Only 1st level subterms
+someSubterm' :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Position, Term f a)
+someSubterm' f  = evalTerm ( return . ([],) . return )
+                           ( msum
+                           . zipWith (\p -> liftM ([p],)) [1..]
+                           . liftM2 Impure
+                           . interleaveM f)
+
+interleaveDeep :: forall m f a. (Monad m, Traversable f) =>
+                  (Free f a -> m (Free f a)) -> Free f a -> [m (Position, Free f a)]
+interleaveDeep f t = [liftM (\(t',_) -> (cursor,t')) $ evalRWST indexedComp cursor []
+                         | cursor <- positions t]
+   where
+     indexedComp = foldFreeM (return.return) f' t
+
+     f' :: f (Free f a) -> RWST Position () Position m (Free f a)
+     f' = liftM Impure
+        . unsafeZipWithGM (\pos t -> modify (++[pos]) >> indexedf t)
+                          [0..]
+
+     indexedf :: Free f a -> RWST Position () Position m (Free f a)
+     indexedf x = do {pos <- get; cursor <- ask;
+                      if pos == cursor then lift(f x) else return x}
+
+someSubtermDeep :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Position, Term f a)
+someSubtermDeep f = msum . interleaveDeep f
 
 collect :: (Foldable f, Functor f) => (Term f v -> Bool) -> Term f v -> [Term f v]
 collect pred t = [ u | u <- subterms t, pred u]
