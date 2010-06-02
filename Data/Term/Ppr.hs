@@ -12,9 +12,6 @@ import Data.Term.Var
 import Data.Term.IOVar
 
 
---instance Pretty Char where ppr = char
-instance Pretty Doc    where pPrint d = d
-
 instance (Pretty (f(Free f a)), Pretty a) => Pretty (Term f a) where
     pPrint (Impure t) = pPrint t
     pPrint (Pure a) = pPrint a
