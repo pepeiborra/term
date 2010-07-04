@@ -246,7 +246,7 @@ occurrences sub parent = [ note t | t <- subterms(annotateWithPos parent), dropN
 -- -----
 -- * Ids
 -- -----
-class (Functor f, Ord (TermId f)) => HasId f where
+class (Ord (TermId f)) => HasId f where
     type TermId f :: *
     getId :: f a -> Maybe (TermId f)
 

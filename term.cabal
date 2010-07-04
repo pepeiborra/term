@@ -1,5 +1,5 @@
 name: term
-version: 0.1.20100603
+version: 0.1.20100703
 Cabal-Version:  >= 1.2.3
 build-type: Simple
 license: PublicDomain
@@ -36,14 +36,18 @@ Library
                GeneralizedNewtypeDeriving
 
   exposed-modules:
-    Data.Bifunctor 
+    Data.Bifunctor,
     Data.Term,
+    Data.Term.Annotated,
     Data.Term.Rules,
+    Data.Term.Annotated.Rules,
     Data.Term.Simple,
     Data.Term.Var,
     Data.Term.IOVar,
     Data.Term.Rewriting,
-    Data.Term.Narrowing
+    Data.Term.Narrowing,
+    Data.Term.Annotated.Rewriting,
+    Data.Term.Annotated.Narrowing,
     Data.Term.Ppr
 
   other-modules:

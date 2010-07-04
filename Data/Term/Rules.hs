@@ -205,7 +205,7 @@ getArity l f = fromMaybe (error ("getArity: symbol not in signature"))
                          (Map.lookup f constructorSymbols `mplus` Map.lookup f definedSymbols)
   where  Sig{..} = getSignature l
 
-isConstructorTerm :: (Foldable t, HasId t, HasSignature sig, TermId t ~ SignatureId sig) => sig -> Term t v -> Bool
+isConstructorTerm :: (Functor t, Foldable t, HasId t, HasSignature sig, TermId t ~ SignatureId sig) => sig -> Term t v -> Bool
 isConstructorTerm sig t = (`Set.member` getConstructorSymbols sig) `all` collectIds t
 
 isRootDefined :: ( HasId t, HasSignature sig, TermId t ~ SignatureId sig) => sig -> Term t v -> Bool
@@ -213,7 +213,7 @@ isRootDefined sig t
    | Just id <- rootSymbol t = id `Set.member` getDefinedSymbols sig
    | otherwise = False
 
-collectIds :: (Foldable t, HasId t) => Term t v -> [TermId t]
+collectIds :: (Functor t, Foldable t, HasId t) => Term t v -> [TermId t]
 collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toList t))
 
 -- -------------
