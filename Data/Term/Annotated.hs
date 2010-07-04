@@ -11,7 +11,7 @@ module Data.Term.Annotated (
      Measured(..),
 -- * Terms
      Term,
-     mkT, mkV, getT, getV,
+     mkT, mkV, getT, getV, free, ann,
      foldTerm, foldTermM, mapTerm, evalTerm,
      annotate, dropNotes,
 -- * Subterms
@@ -37,7 +37,7 @@ module Data.Term.Annotated (
      ) where
 
 import           Control.Applicative                 hiding (pure)
-import           Control.Monad.Free.Annotated        hiding (fmap, join, mapM) -- (Free(..), Measured(..), pure, impure, foldFree, foldFreeM, mapFree, mapFreeM, evalFree, isPure)
+import           Control.Monad.Free.Annotated        hiding (ann, fmap, join, mapM)
 import qualified Control.Monad.Free.Annotated        as Free
 import           Control.Monad.Identity              (runIdentity, liftM, MonadPlus(..), msum, when)
 import           Control.Monad.Trans                 (lift)
@@ -85,6 +85,13 @@ mkV = pure
 
 getV = evalTerm Just (const Nothing)
 getT = evalTerm (const Nothing) Just
+
+free :: Term ann t a -> Either a (t(Term ann t a))
+free (Impure _ f) = Right f
+free (Pure   _ v) = Left  v
+
+ann :: Term ann t a -> ann
+ann = Free.ann
 
 dropNotes :: Functor t => Term ann t a -> Sans.Term t a
 dropNotes = down
