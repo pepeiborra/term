@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
