@@ -1,5 +1,5 @@
 name: term
-version: 0.1.20100703
+version: 0.1.20100705
 Cabal-Version:  >= 1.2.3
 build-type: Simple
 license: PublicDomain
