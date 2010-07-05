@@ -116,8 +116,7 @@ subterms, directSubterms, properSubterms :: (Functor termF, Foldable termF) =>
                              Term ann termF var -> [Term ann termF var]
 subterms t = t : properSubterms t
 directSubterms = evalFree (const []) toList
-properSubterms = foldFree' (\ann v -> [Pure ann v]) (const fold)
---properSubterms = evalFree (const []) (P.concatMap subterms . toList)
+properSubterms = evalFree (const []) (P.concatMap subterms . toList)
 
 mapSubterms :: (Foldable t, Functor t, Measured a ann) =>
                (Term ann t a -> Term ann t a) -> Term ann t a -> Term ann t a
