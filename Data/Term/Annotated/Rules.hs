@@ -24,7 +24,7 @@ module Data.Term.Annotated.Rules
    R.getArity, R.getArities, R.getConstructorSymbols, R.getDefinedSymbols, R.getAllSymbols,
    isConstructorTerm, isRootDefined, collectIds,
    GetVars(..),
-   GetUnifier(..), getUnifier, unifies', equiv', equiv2', getUnifierMdefault,
+   GetUnifier(..), getUnifier, unifies', equiv', getUnifierMdefault,
    GetMatcher(..), getMatcher, matches', getMatcherMdefault,
    GetFresh(..), getFresh, getVariant, getFreshMdefault
   ) where
@@ -44,12 +44,9 @@ import           Data.Monoid
 import           Data.Traversable             (Traversable)
 import qualified Data.Traversable             as T
 import qualified Data.Map                     as Map
-import           Data.Set                     (Set)
 import qualified Data.Set                     as Set
 
 import           Data.Term.Annotated
-import           Data.Term.Var
-import           Data.Term.IOVar
 import           Data.Term.Rules              (RuleF(..), Signature(..), HasSignature(..), GetVars(..)
                                               ,getConstructorSymbols, getDefinedSymbols)
 import qualified Data.Term.Rules              as R
@@ -110,7 +107,7 @@ getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ Set.toList (getVars t))
 -- * Signatures
 -- ---------------------
 
-instance (HasId t, Functor t, Foldable t) => HasSignature (Term ann t v) where
+instance (HasId t, Functor t, Foldable t, Measured v ann) => HasSignature (Term ann t v) where
   type SignatureId (Term ann t v) = TermId t
   getSignature t = Sig{ definedSymbols = Map.empty
                         , constructorSymbols = all }
@@ -119,7 +116,7 @@ instance (HasId t, Functor t, Foldable t) => HasSignature (Term ann t v) where
                                   | t <- subterms t
                                   , Just f <- [rootSymbol t]]
 
-instance (Functor t, Foldable t, HasId t) => HasSignature [Term ann t v] where
+instance (Functor t, Foldable t, HasId t, Measured v ann) => HasSignature [Term ann t v] where
   type SignatureId [Term ann t v] = TermId t
   getSignature terms = Sig{ definedSymbols     = Map.empty
                           , constructorSymbols = all
@@ -129,7 +126,7 @@ instance (Functor t, Foldable t, HasId t) => HasSignature [Term ann t v] where
                                   , Just f <- [rootSymbol t]]
 
 
-instance (Functor t, Foldable t,  HasId t) => HasSignature (Rule ann t v) where
+instance (Functor t, Foldable t,  HasId t, Measured v ann) => HasSignature (Rule ann t v) where
   type SignatureId (Rule ann t v) = TermId t
   getSignature (l :-> r)
     | Just d <- rootSymbol l
@@ -145,7 +142,7 @@ instance (Functor t, Foldable t,  HasId t) => HasSignature (Rule ann t v) where
                           | t <- concatMap subterms (r : directSubterms l)
                           , Just f <- [rootSymbol t]]
 
-instance (Functor t, Foldable t,  HasId t) => HasSignature [Rule ann t v] where
+instance (Functor t, Foldable t,  HasId t, Measured v ann) => HasSignature [Rule ann t v] where
   type SignatureId [Rule ann t v] = TermId t
   getSignature rules = Sig{ definedSymbols     = filterByKey (`Set.member` dd) all
                           , constructorSymbols = filterByKey (`Set.notMember` dd) all
@@ -227,12 +224,18 @@ getMatcherMdefault t u
 --instance (Ord v, Enum v, Ord (Term t v), GetUnifier t v thing, GetVars v thing, GetFresh t v thing) =>
 instance (Enum v, Rename v, Measured v ann, GetMatcher ann t v thing, GetVars v thing, GetFresh ann t v thing) =>
          Eq (EqModulo thing) where
-           EqModulo t1 == EqModulo t2 = t1 `equiv2'` t2
-
+           EqModulo t1 == EqModulo t2 = t1 `equiv'` t2
+{-
 equiv' :: forall termF var t ann.
          (Ord var, Enum var, Rename var, Ord (Term ann termF var),
          GetUnifier ann termF var t, GetVars var t, GetFresh ann termF var t,
          Measured var ann
          ) => t -> t -> Bool
 equiv' t u = maybe False isRenaming (getUnifier (getVariant t u) u)
-equiv2' t u = let t' = getVariant t u in matches' t' u && matches' u t'
+-}
+
+equiv' :: forall termF var t ann.
+         (Foldable termF, Ord var, Enum var, Rename var, Measured var ann,
+         GetMatcher ann termF var t, GetVars var t, GetFresh ann termF var t
+         ) => t -> t -> Bool
+equiv' t u = let t' = getVariant t u in matches' t' u && matches' u t'

@@ -112,11 +112,14 @@ mapTerm = mapFree
 evalTerm :: (a -> b) -> (f (Term ann f a) -> b) -> Term ann f a -> b
 evalTerm = evalFree
 
-subterms, properSubterms, directSubterms :: (Functor termF, Foldable termF) => Term ann termF var -> [Term ann termF var]
+directSubterms :: (Functor termF, Foldable termF) =>
+                             Term ann termF var -> [Term ann termF var]
+subterms, properSubterms ::(Functor termF, Foldable termF, Measured var ann) =>
+                           Term ann termF var -> [Term ann termF var]
 subterms t = t : properSubterms t
 directSubterms = evalFree (const []) toList
---properSubterms = foldFree ((:[]) . pure) fold
-properSubterms = evalFree (const []) (P.concatMap subterms . toList)
+properSubterms = foldFree ((:[]) . mkV) fold
+--properSubterms = evalFree (const []) (P.concatMap subterms . toList)
 
 mapSubterms :: (Foldable t, Functor t, Measured a ann) =>
                (Term ann t a -> Term ann t a) -> Term ann t a -> Term ann t a
@@ -168,7 +171,7 @@ someSubtermDeep :: (Traversable f, MonadPlus m, Measured a ann) =>
                    (Term ann f a -> m(Term ann f a)) -> Term ann f a -> m (Position, Term ann f a)
 someSubtermDeep f = msum . interleaveDeep f
 
-collect :: (Foldable f, Functor f) => (Term ann f v -> Bool) -> Term ann f v -> [Term ann f v]
+collect :: (Foldable f, Functor f, Measured v ann) => (Term ann f v -> Bool) -> Term ann f v -> [Term ann f v]
 collect pred t = [ u | u <- subterms t, pred u]
 
 vars :: (Functor termF, Foldable termF) => Term ann termF var -> [var]
@@ -410,6 +413,7 @@ class (Functor termF, Monad m) => MonadEnv ann termF var m | m -> ann termF var 
                    Just t  -> zonkM fv t
 
 
+{-# INLINE find' #-}
 find' :: (Monoid ann, Measured v ann) => MonadEnv ann termF v m => Term ann termF v -> m(Term ann termF v)
 find' t = evalFree find (\_ -> return t) t
 
@@ -448,7 +452,13 @@ class (Traversable termF, Eq (termF ())) => Unify termF
 
 -- Generic instance
 instance (Traversable termF, Eq (termF ())) => Unify termF where
-  unifyM t s = do
+  unifyM = unifyMDefault
+
+unifyMDefault :: ( Traversable termF, Eq (termF ())
+                 , Monoid ann, Measured var ann
+                 , MonadEnv ann termF var m, Ord var
+                 ) => Term ann termF var -> Term ann termF var -> m ()
+unifyMDefault t s = do
     t' <- find' t
     s' <- find' s
     unifyOne t' s'
