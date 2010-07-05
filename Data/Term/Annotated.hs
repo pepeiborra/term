@@ -112,50 +112,49 @@ mapTerm = mapFree
 evalTerm :: (a -> b) -> (f (Term ann f a) -> b) -> Term ann f a -> b
 evalTerm = evalFree
 
-directSubterms :: (Functor termF, Foldable termF) =>
+subterms, directSubterms, properSubterms :: (Functor termF, Foldable termF) =>
                              Term ann termF var -> [Term ann termF var]
-subterms, properSubterms ::(Functor termF, Foldable termF, Measured var ann) =>
-                           Term ann termF var -> [Term ann termF var]
 subterms t = t : properSubterms t
 directSubterms = evalFree (const []) toList
-properSubterms = foldFree ((:[]) . mkV) fold
+properSubterms = foldFree' (\ann v -> [Pure ann v]) (const fold)
 --properSubterms = evalFree (const []) (P.concatMap subterms . toList)
 
 mapSubterms :: (Foldable t, Functor t, Measured a ann) =>
                (Term ann t a -> Term ann t a) -> Term ann t a -> Term ann t a
-mapSubterms f  = evalTerm pure (impure . fmap f)
+mapSubterms f  = evalFree' Pure (\_ -> impure . fmap f)
 
 mapMSubterms :: (Traversable t, Monad m, Measured a ann) =>
                 (Term ann t a -> m(Term ann t a)) -> Term ann t a -> m(Term ann t a)
-mapMSubterms f = evalTerm (return . pure) (liftM impure . mapM f)
+mapMSubterms f = evalFree' ((return.) . Pure) (\_ -> liftM impure . mapM f)
 
 
 -- | Only 1st level subterms
 someSubterm :: (Traversable f, MonadPlus m, Measured a ann) =>
                (Term ann f a -> m(Term ann f a)) -> Term ann f a -> m (Term ann f a)
-someSubterm f  = evalFree (return . pure) (msum . liftM2 impure . interleaveM f)
+someSubterm f  = evalFree' ((return.) . Pure) (\ann -> msum . liftM2 (Impure ann) . interleaveM f)
 
 -- | Only 1st level subterms
 someSubterm' :: (Traversable f, MonadPlus m, Measured a ann) =>
                 (Term ann f a -> m(Term ann f a)) -> Term ann f a -> m (Position, Term ann f a)
-someSubterm' f  = evalTerm ( return . ([],) . pure)
-                           ( msum
+someSubterm' f  = evalFree'( ((return . ([],)).) . Pure)
+                           (\_ ->
+                             msum
                            . zipWith (\p -> liftM ([p],)) [1..]
                            . liftM2 impure
                            . interleaveM f)
 
 interleaveDeep :: forall m f a ann. (Monad m, Traversable f, Measured a ann) =>
-                       (Term ann f a -> m (Term ann f a)) -> Term ann f a -> [m (Position, Term ann f a)]
+                  (Term ann f a -> m (Term ann f a)) -> Term ann f a -> [m (Position, Term ann f a)]
 interleaveDeep f t
    = [liftM (\(t',_) -> (cursor,t')) $ evalRWST indexedComp cursor []
           | cursor <- positions t]
    where
-     indexedComp = foldFreeM (return.pure) f' t
+     indexedComp = foldFreeM' ((return.).Pure) f' t
 
-     f' :: f (Term ann f a) -> RWST Position () Position m (Term ann f a)
-     f' = liftM impure
-        . unsafeZipWithGM (\pos t -> modify (++[pos]) >> indexedf t)
-                          [0..]
+     f' :: ann -> f (Term ann f a) -> RWST Position () Position m (Term ann f a)
+     f' _ = liftM impure
+          . unsafeZipWithGM (\pos t -> modify (++[pos]) >> indexedf t)
+                            [0..]
 
      indexedf :: Term ann f a -> RWST Position () Position m (Term ann f a)
      indexedf x = get >>= \pos -> ask >>= \cursor ->
@@ -171,7 +170,8 @@ someSubtermDeep :: (Traversable f, MonadPlus m, Measured a ann) =>
                    (Term ann f a -> m(Term ann f a)) -> Term ann f a -> m (Position, Term ann f a)
 someSubtermDeep f = msum . interleaveDeep f
 
-collect :: (Foldable f, Functor f, Measured v ann) => (Term ann f v -> Bool) -> Term ann f v -> [Term ann f v]
+collect :: (Foldable f, Functor f) =>
+           (Term ann f v -> Bool) -> Term ann f v -> [Term ann f v]
 collect pred t = [ u | u <- subterms t, pred u]
 
 vars :: (Functor termF, Foldable termF) => Term ann termF var -> [var]
@@ -249,22 +249,23 @@ updateAtM pos f t = runStateT (go pos t) t where
 note :: Term ann (WithNote1 n t) (WithNote n a) -> n
 note = evalFree (\(Note (n,_)) -> n) (\(Note1 (n,_)) -> n)
 
-dropNote :: (Functor t, Foldable t, Measured a ann) => Term ann (WithNote1 n t) (WithNote n a) -> Free ann t a
-dropNote = foldTerm (\(Note (_,v)) -> pure v) (\(Note1 (_,x)) -> impure x)
+dropNote :: (Functor t, Foldable t) =>
+            Term ann (WithNote1 n t) (WithNote n a) -> Free ann t a
+dropNote = foldFree' (\ann (Note (_,v)) -> Pure ann v) (\ann (Note1 (_,x)) -> Impure ann x)
 
-annotateWithPos :: (Traversable f, Measured v ann, Monoid ann) =>
+annotateWithPos :: (Traversable f, Monoid ann) =>
                    Term ann f v -> Term ann (WithNote1 Position f) (WithNote Position v)
 annotateWithPos = go [] where
-     go pos = evalFree (pure   . Note . (pos,))
-                       (impure . Note1 . (pos,) . unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] ) -- TODO Remove the append at tail
+     go pos = evalFree' (\ann -> Pure   ann . Note . (pos,))
+                        (\ann -> Impure ann . Note1 . (pos,) . unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] ) -- TODO Remove the append at tail
 
-annotateWithPosV :: (Traversable f, Measured v ann, Monoid ann) =>
+annotateWithPosV :: (Traversable f, Monoid ann) =>
                     Term ann f v -> Term ann f (WithNote Position v)
 annotateWithPosV= go [] where
-     go pos = evalFree (pure   . Note . (pos,))
-                       (impure . unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..]) -- TODO Remove the append at tail
+     go pos = evalFree' (\ann -> Pure   ann . Note . (pos,))
+                        (\ann -> Impure ann . unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..]) -- TODO Remove the append at tail
 
-occurrences :: (Traversable f, Eq (Term ann f v), Measured v ann, Monoid ann) =>
+occurrences :: (Traversable f, Eq (Term ann f v), Monoid ann) =>
                Term ann f v -> Term ann f v -> [Position]
 occurrences sub parent = [ note t | t <- subterms(annotateWithPos parent)
                                   , dropNote t == sub]

@@ -107,7 +107,7 @@ getVariant u t = evalState (getFresh u) ([toEnum 0..] \\ Set.toList (getVars t))
 -- * Signatures
 -- ---------------------
 
-instance (HasId t, Functor t, Foldable t, Measured v ann) => HasSignature (Term ann t v) where
+instance (HasId t, Functor t, Foldable t) => HasSignature (Term ann t v) where
   type SignatureId (Term ann t v) = TermId t
   getSignature t = Sig{ definedSymbols = Map.empty
                         , constructorSymbols = all }
@@ -116,7 +116,7 @@ instance (HasId t, Functor t, Foldable t, Measured v ann) => HasSignature (Term 
                                   | t <- subterms t
                                   , Just f <- [rootSymbol t]]
 
-instance (Functor t, Foldable t, HasId t, Measured v ann) => HasSignature [Term ann t v] where
+instance (Functor t, Foldable t, HasId t) => HasSignature [Term ann t v] where
   type SignatureId [Term ann t v] = TermId t
   getSignature terms = Sig{ definedSymbols     = Map.empty
                           , constructorSymbols = all
@@ -126,7 +126,7 @@ instance (Functor t, Foldable t, HasId t, Measured v ann) => HasSignature [Term 
                                   , Just f <- [rootSymbol t]]
 
 
-instance (Functor t, Foldable t,  HasId t, Measured v ann) => HasSignature (Rule ann t v) where
+instance (Functor t, Foldable t,  HasId t) => HasSignature (Rule ann t v) where
   type SignatureId (Rule ann t v) = TermId t
   getSignature (l :-> r)
     | Just d <- rootSymbol l
@@ -142,7 +142,7 @@ instance (Functor t, Foldable t,  HasId t, Measured v ann) => HasSignature (Rule
                           | t <- concatMap subterms (r : directSubterms l)
                           , Just f <- [rootSymbol t]]
 
-instance (Functor t, Foldable t,  HasId t, Measured v ann) => HasSignature [Rule ann t v] where
+instance (Functor t, Foldable t,  HasId t) => HasSignature [Rule ann t v] where
   type SignatureId [Rule ann t v] = TermId t
   getSignature rules = Sig{ definedSymbols     = filterByKey (`Set.member` dd) all
                           , constructorSymbols = filterByKey (`Set.notMember` dd) all
