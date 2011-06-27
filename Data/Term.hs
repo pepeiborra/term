@@ -33,24 +33,17 @@ module Data.Term (
      ) where
 
 import Control.Applicative
+import Control.Monad (liftM, join, MonadPlus(..), msum, when)
 import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, mapFreeM, evalFree, isPure)
 import Control.Monad.Free.Zip
-import Control.Monad.Identity (runIdentity, liftM, join, MonadPlus(..), msum, when)
+import Control.Monad.Identity (runIdentity)
 import Control.Monad.Trans (lift)
 
-#ifdef TRANSFORMERS
-import Control.Monad.Trans.State(State, StateT(..), get, put, modify, evalState, evalStateT, execStateT)
-import Control.Monad.Trans.List(ListT)
-import Control.Monad.Trans.Reader(ReaderT)
-import Control.Monad.Trans.RWS(RWST, ask, evalRWST)
-import Control.Monad.Trans.Writer(WriterT)
-#else
 import Control.Monad.State(State, StateT(..), get, put, modify, evalState, evalStateT, execStateT)
 import Control.Monad.List(ListT)
 import Control.Monad.Reader(ReaderT)
-import Control.Monad.RWS(RWS,RWST, ask, evalRWST)
+import Control.Monad.RWS(RWST, ask, evalRWST)
 import Control.Monad.Writer(WriterT)
-#endif
 
 import Data.Bifunctor
 import Data.Foldable (Foldable(..), toList)
@@ -76,7 +69,7 @@ foldTermM :: (Traversable t, Monad m) => (a -> m b) -> (t b -> m b) -> Term t a 
 foldTermM = foldFreeM
 
 mapTerm :: (Functor t, Functor t') => (forall a. t a -> t' a) -> Term t a -> Term t' a
-mapTerm = mapFree
+mapTerm f = mapFree f
 
 evalTerm :: (a -> b) -> (f (Free f a) -> b) -> Free f a -> b
 evalTerm = evalFree
@@ -112,11 +105,10 @@ interleaveDeep :: forall m f a. (Monad m, Traversable f) =>
 interleaveDeep f t = [liftM (\(t',_) -> (cursor,t')) $ evalRWST indexedComp cursor []
                          | cursor <- positions t]
    where
-     indexedComp = foldFreeM (return.return) f' t
+     indexedComp = mapFreeM f' t
 
-     f' :: f (Free f a) -> RWST Position () Position m (Free f a)
-     f' = liftM Impure
-        . unsafeZipWithGM (\pos t -> modify (++[pos]) >> indexedf t)
+     f' :: f (Free f a) -> RWST Position () Position m (f(Free f a))
+     f' = unsafeZipWithGM (\pos t -> modify (++[pos]) >> indexedf t)
                           [0..]
 
      indexedf :: Free f a -> RWST Position () Position m (Free f a)
@@ -386,17 +378,6 @@ instance (Monad m, Functor t, Ord v) => MonadEnv t v (StateT (Substitution t v, 
   varBind v = withFst . varBind v
   lookupVar = withFst . lookupVar
 
-#ifndef TRANSFORMERS
-instance (Functor t, Ord v) => MonadEnv t v (State (Substitution t v)) where
-  varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
-  lookupVar t  = get >>= \s -> return(lookupSubst t s)
-
-instance (Functor t, Ord v) => MonadEnv t v (State (Substitution t v, a)) where
-  varBind v t = do {(e,a) <- get; put (liftSubst (Map.insert v t) e,a)}
-  lookupVar t  = get >>= \(s,_) -> return(lookupSubst t s)
-
-#endif
-
 -- ------------------------------------
 -- * Unification (without occurs check)
 -- ------------------------------------
@@ -504,17 +485,6 @@ instance (Rename v, Monad m) => MonadVariant v (StateT (a,[v]) m) where
 
 instance (Monoid w, Rename v, Monad m) => MonadVariant v (RWST r w [v] m) where
     freshVar = do { x:xx <- get; put xx; return x}
-
-#ifndef TRANSFORMERS
-instance Rename v => MonadVariant v (State [v])     where
-    freshVar = do { x:xx <- get; put xx; return x}
-
-instance Rename v => MonadVariant v (State (a,[v])) where
-    freshVar = do {(s,x:xx) <- get; put (s,xx); return x}
-
-instance (Rename v, Monoid w) => MonadVariant v (RWS r w [v]) where
-    freshVar = do { x:xx <- get; put xx; return x}
-#endif
 
 fresh ::  (Traversable t, MonadEnv t var m, MonadVariant var m) =>
          Term t var -> m (Term t var)

@@ -7,7 +7,6 @@ import qualified Data.Map                       as Map
 import           Text.PrettyPrint.HughesPJClass as Pretty
 
 import           Data.Term
-import qualified Control.Monad.Free.Annotated   as A
 import           Data.Term.Rules
 import           Data.Term.Var
 import           Data.Term.IOVar
@@ -16,10 +15,6 @@ import           Data.Term.IOVar
 instance (Pretty (f(Free f a)), Pretty a) => Pretty (Term f a) where
     pPrint (Impure t) = pPrint t
     pPrint (Pure a) = pPrint a
-
-instance (Pretty (f(A.Free ann f a)), Pretty a) => Pretty (A.Free ann f a) where
-    pPrint (A.Impure _ t) = pPrint t
-    pPrint (A.Pure   _ a) = pPrint a
 
 instance Pretty Var where
     pPrint (VName v)  = text v

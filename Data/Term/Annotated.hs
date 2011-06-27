@@ -39,22 +39,15 @@ module Data.Term.Annotated (
 import           Control.Applicative                 hiding (pure)
 import           Control.Monad.Free.Annotated        hiding (ann, fmap, join, mapM)
 import qualified Control.Monad.Free.Annotated        as Free
-import           Control.Monad.Identity              (runIdentity, liftM, MonadPlus(..), msum, when)
+import           Control.Monad                       (liftM, join, MonadPlus(..), msum, when)
+import           Control.Monad.Identity              (runIdentity)
 import           Control.Monad.Trans                 (lift)
 
-#ifdef TRANSFORMERS
-import           Control.Monad.Trans.State           (State, StateT(..), get, put, modify, evalState, evalStateT, execStateT)
-import           Control.Monad.Trans.List(ListT)
-import           Control.Monad.Trans.Reader(ReaderT)
-import           Control.Monad.Trans.RWS             (RWST, ask, evalRWST)
-import           Control.Monad.Trans.Writer(WriterT)
-#else
 import           Control.Monad.State                 (State, StateT(..), get, put, modify, evalState, evalStateT, execStateT)
 import           Control.Monad.List(ListT)
 import           Control.Monad.Reader(ReaderT)
-import           Control.Monad.RWS                   (RWS,RWST, ask, evalRWST)
+import           Control.Monad.RWS                   (RWST, ask, evalRWST)
 import           Control.Monad.Writer(WriterT)
-#endif
 
 import           Data.Bifunctor
 import           Data.Foldable                       (Foldable(..), toList)
@@ -424,17 +417,6 @@ instance (Monad m, Functor t, Ord v) => MonadEnv ann t v (StateT (Substitution a
 instance (Monad m, Functor t, Ord v) => MonadEnv ann t v (StateT (Substitution ann t v, a) m) where
   varBind v = withFst . varBind v
   lookupVar = withFst . lookupVar
-
-#ifndef TRANSFORMERS
-instance (Functor t, Ord v) => MonadEnv ann t v (State (Substitution ann t v)) where
-  varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
-  lookupVar t  = get >>= \s -> return(lookupSubst t s)
-
-instance (Functor t, Ord v) => MonadEnv ann t v (State (Substitution ann t v, a)) where
-  varBind v t = do {(e,a) <- get; put (liftSubst (Map.insert v t) e,a)}
-  lookupVar t  = get >>= \(s,_) -> return(lookupSubst t s)
-
-#endif
 
 -- ------------------------------------
 -- * Unification (without occurs check)

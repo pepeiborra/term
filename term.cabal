@@ -1,5 +1,5 @@
 name: term
-version: 0.1.20100705
+version: 0.1.20110102
 Cabal-Version:  >= 1.2.3
 build-type: Simple
 license: PublicDomain
@@ -19,12 +19,7 @@ Flag logict
 
 Library
   buildable: True
-  build-depends: base > 4, containers, prettyclass, control-monad-free
-  if flag(transformers)
-     build-depends: transformers
-     cpp-options: -DTRANSFORMERS
-  else
-     build-depends: mtl
+  build-depends: base > 4, containers, mtl, prettyclass, control-monad-free
 
   if flag(logict)
      build-depends: logict
@@ -38,17 +33,19 @@ Library
   exposed-modules:
     Data.Bifunctor,
     Data.Term,
-    Data.Term.Annotated,
     Data.Term.Rules,
-    Data.Term.Annotated.Rules,
     Data.Term.Simple,
     Data.Term.Var,
     Data.Term.IOVar,
     Data.Term.Rewriting,
     Data.Term.Narrowing,
-    Data.Term.Annotated.Rewriting,
-    Data.Term.Annotated.Narrowing,
     Data.Term.Ppr
+--    Data.Term.Annotated,
+--    Data.Term.Annotated.Ppr,
+--    Data.Term.Annotated.Rules,
+--    Data.Term.Annotated.Rewriting,
+--    Data.Term.Annotated.Narrowing,
+
 
   other-modules:
     Data.Term.Utils,

@@ -32,11 +32,7 @@ module Data.Term.Annotated.Rules
 import           Control.Applicative
 import           Control.Monad                (zipWithM_)
 import           Control.Monad.Free.Annotated
-#ifdef TRANSFORMERS
-import           Control.Monad.Trans.State    (evalState, execStateT, evalStateT)
-#else
 import           Control.Monad.State          (evalState, execStateT, evalStateT)
-#endif
 import           Data.Foldable                (Foldable, foldMap, toList)
 import           Data.List                    ((\\))
 import           Data.Maybe

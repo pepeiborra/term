@@ -20,7 +20,7 @@
 -}
 module Data.Term.Rules
   (RuleF(..), Rule, left, right, HasRules(..), swapRule, IsTRS(..),
-   Signature(..), mapSignature, allSymbols, HasSignature(..),
+   Signature(..), mapSignature, allSymbols, arities, HasSignature(..),
    getArity, getArities, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
    isConstructorTerm, isRootDefined, collectIds,
    GetVars(..),
@@ -31,11 +31,7 @@ module Data.Term.Rules
 
 import Control.Applicative
 import Control.Monad.Free
-#ifdef TRANSFORMERS
-import Control.Monad.Trans.State (evalState, execStateT, evalStateT)
-#else
 import Control.Monad.State (evalState, execStateT, evalStateT)
-#endif
 import Data.Foldable (Foldable, foldMap, toList)
 import Data.List ((\\))
 import Data.Maybe
@@ -191,6 +187,8 @@ mapSignature f (Sig cc dd) = Sig (Map.mapKeys f cc) (Map.mapKeys f dd)
 allSymbols :: Ord id => Signature id -> Set id
 allSymbols s = Map.keysSet(definedSymbols s) `mappend` Map.keysSet (constructorSymbols s)
 
+arities Sig{..} = constructorSymbols `mappend` definedSymbols
+
 getDefinedSymbols, getConstructorSymbols, getAllSymbols :: ( HasSignature l) => l -> Set (SignatureId l)
 getArities :: ( HasSignature sig) => sig -> Map (SignatureId sig) Int
 getArity :: ( HasSignature sig) => sig -> SignatureId sig -> Int
@@ -272,7 +270,7 @@ instance (Enum v, Rename v, GetMatcher t v thing, GetVars v thing, GetFresh t v 
            EqModulo t1 == EqModulo t2 = t1 `equiv2'` t2
 
 equiv' :: forall termF var t.
-         (Ord var, Enum var, Rename var, Ord (Term termF var),
+         (Ord var, Enum var, Rename var, Ord (termF (Term termF var)),
          GetUnifier termF var t, GetVars var t, GetFresh termF var t) => t -> t -> Bool
 equiv' t u = maybe False isRenaming (getUnifier (getVariant t u) u)
 equiv2' t u = let t' = getVariant t u in matches' t' u && matches' u t'

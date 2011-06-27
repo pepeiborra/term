@@ -23,7 +23,7 @@ import Data.Term.Utils
 ----------------------------------------
 
 rewrite1 :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m(Term t v)
-rewrite1 rr t = (snd<$>rewriteStep rr t) `evalStateT` freshvars
+rewrite1 rr t = (snd `liftM` rewriteStep rr t) `evalStateT` freshvars
   where freshvars = [toEnum 0 ..] \\ vars t
 
 rewrite1' :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m(Position, Term t v)

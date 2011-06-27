@@ -20,11 +20,7 @@ import qualified Control.Monad.Free.Annotated as Free
 #ifdef LOGICT
 import Control.Monad.Logic
 #endif
-#ifdef TRANSFORMERS
-import Control.Monad.Trans.State
-#else
 import Control.Monad.State
-#endif
 import Data.Foldable (Foldable)
 import Data.Monoid
 import Data.Traversable (Traversable)
