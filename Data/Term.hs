@@ -39,7 +39,7 @@ import Control.Monad.Free.Zip
 import Control.Monad.Identity (runIdentity)
 import Control.Monad.Trans (lift)
 
-import Control.Monad.State(State, StateT(..), get, put, modify, evalState, evalStateT, execStateT)
+import Control.Monad.State(StateT(..), get, put, modify, evalState, evalStateT, execStateT)
 import Control.Monad.List(ListT)
 import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWST, ask, evalRWST)
