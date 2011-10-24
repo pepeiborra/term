@@ -19,7 +19,7 @@ Flag logict
 
 Library
   buildable: True
-  build-depends: base > 4, containers, mtl > 2, prettyclass, control-monad-free > 0.5
+  build-depends: base > 4, containers, mtl > 2, prettyclass, control-monad-free > 0.5, bifunctors
 
   if flag(logict)
      build-depends: logict
@@ -31,7 +31,6 @@ Library
                GeneralizedNewtypeDeriving
 
   exposed-modules:
-    Data.Bifunctor,
     Data.Term,
     Data.Term.Rules,
     Data.Term.Simple,

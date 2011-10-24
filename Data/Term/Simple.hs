@@ -3,6 +3,7 @@
 
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
+import Control.Applicative
 import Control.Monad.Free
 import Data.Bifunctor
 import Data.Char (isAlpha)
@@ -45,7 +46,7 @@ instance Ord id =>  HasId (TermF id) where
     getId (Term id _) = Just id
 
 instance MapId TermF where
-    mapIdM f (Term id tt) = (`Term` tt) `liftM` f id
+    mapIdM f (Term id tt) = (`Term` tt) <$> f id
 
 instance (Pretty a, Pretty id) => Pretty (TermF id a) where
     pPrint (Term n []) = pPrint n

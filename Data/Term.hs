@@ -45,7 +45,7 @@ import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWST, ask, evalRWST)
 import Control.Monad.Writer(WriterT)
 
-import Data.Bifunctor
+import Data.Bitraversable
 import Data.Foldable (Foldable(..), toList)
 import Data.List ((\\))
 import Data.Map (Map)
@@ -247,10 +247,10 @@ instance HasId f => HasId (Free f) where
     getId = evalFree (const Nothing) getId
 
 class MapId f where mapId  :: (id -> id') -> f id a -> f id' a
-                    mapIdM :: (Monad m) => (id -> m id') -> f id a -> m(f id' a)
-                    mapId f = runIdentity  . mapIdM (return.f)
+                    mapIdM :: (Applicative m) => (id -> m id') -> f id a -> m(f id' a)
+                    mapId f = runIdentity  . mapIdM (pure.f)
 
-instance BifunctorM f => MapId f where mapIdM f = bimapM f return
+instance Bitraversable f => MapId f where mapIdM f = bitraverse f pure
 
 rootSymbol :: HasId f => Term f v -> Maybe (TermId f)
 rootSymbol = getId
@@ -261,7 +261,7 @@ mapRootSymbol f = evalFree return (Impure . mapId f)
 mapTermSymbols :: (Functor (f id), Functor (f id'), MapId f) => (id -> id') -> Term (f id) v -> Term (f id') v
 mapTermSymbols f = mapFree (mapId f)
 
-mapTermSymbolsM :: (Traversable (f id), Functor (f id'), MapId f, Monad t) => (id -> t id') -> Term (f id) v -> t(Term (f id') v)
+mapTermSymbolsM :: (Traversable (f id), Functor (f id'), MapId f, Applicative t, Monad t) => (id -> t id') -> Term (f id) v -> t(Term (f id') v)
 mapTermSymbolsM f = mapFreeM (mapIdM f)
 
 -- ---------------
