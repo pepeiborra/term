@@ -404,7 +404,7 @@ instance (Traversable termF, Eq (termF ())) => Unify termF where
 
 
 {- | Occurs function, to roll your own unification with occurs check.
-   To do this, chip in your custom instance of Unify as follows
+   To do this, declare your custom instance of Unify as follows
 
 > instance (Traversable termF, Eq (termF ())) => Unify termF where
 >   unifyM t s = do
