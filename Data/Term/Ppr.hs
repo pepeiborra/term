@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE UndecidableInstances, OverlappingInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Term.Ppr where
 
 import qualified Data.Map                       as Map
 import           Text.PrettyPrint.HughesPJClass as Pretty
 
-import           Data.Term
+import           Data.Term hiding (Var)
 import           Data.Term.Rules
 import           Data.Term.Var
 import           Data.Term.IOVar

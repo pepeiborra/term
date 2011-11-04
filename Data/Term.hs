@@ -8,8 +8,10 @@
 {-# LANGUAGE CPP #-}
 
 module Data.Term (
+-- * Type Families
+     Term, Var, VarM, Id, Id1,
 -- * Terms
-     Term, Free(..), foldTerm, foldTermM, mapTerm, evalTerm,
+     TermF, TermFM, TermFor, UnwrappedTermFor, Free(..), foldTerm, foldTermM, mapTerm, evalTerm,
 -- * Subterms
      subterms, properSubterms, directSubterms, mapSubterms, mapMSubterms, collect,
      someSubterm, someSubterm', someSubtermDeep,
@@ -24,12 +26,12 @@ module Data.Term (
 -- * Matching & Unification (without occurs check)
      Match(..), Unify(..), unify, occursIn, match, matches, unifies, equiv, equiv2, EqModulo(..),
 -- * Substitutions
-     Substitution, SubstitutionF(..), emptySubst, fromListSubst, domain, codomain, restrictTo, liftSubst,
-     lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming,
+     Substitution, SubstitutionFor, SubstitutionF(..), emptySubst, fromListSubst, domain, codomain,
+     lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming, restrictTo, liftSubst,
 -- Environment monad
-     MonadEnv(..), find',
+     MonadEnv(..), find', MEnvT, evalMEnv, execMEnv, runMEnv,
 -- Fresh monad
-     MonadVariant(..), fresh, freshWith, variant
+     MonadVariant(..), fresh, freshWith, freshWith', variant
      ) where
 
 import Control.Applicative
@@ -37,13 +39,18 @@ import Control.Monad (liftM, join, MonadPlus(..), msum, when)
 import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, mapFreeM, evalFree, isPure)
 import Control.Monad.Free.Zip
 import Control.Monad.Identity (runIdentity)
-import Control.Monad.Trans (lift)
+import Control.Monad.Trans (MonadTrans(..))
+import Control.Monad.Variant hiding (VarM)
 
-import Control.Monad.State(StateT(..), get, put, modify, evalState, evalStateT, execStateT)
+import Control.Monad.State(StateT(..), get, put, modify, evalStateT, execStateT)
 import Control.Monad.List(ListT)
 import Control.Monad.Reader(ReaderT)
 import Control.Monad.RWS(RWST, ask, evalRWST)
 import Control.Monad.Writer(WriterT)
+
+#ifdef LOGICT
+import Control.Monad.Logic (MonadLogic, LogicT)
+#endif
 
 import Data.Bitraversable
 import Data.Foldable (Foldable(..), toList)
@@ -56,6 +63,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Traversable as T
 
+import Data.Id.Family
+import Data.Var.Family
+import Data.Term.Family
 import Data.Term.Utils
 import Prelude as P hiding (mapM)
 
@@ -63,6 +73,13 @@ import Prelude as P hiding (mapM)
 -- * Terms
 -- --------
 type Term = Free
+type TermFor t  = Term (TermF t) (Var t)
+type TermForM m = Term (TermFM m) (VarM m)
+type UnwrappedTermFor t = (TermF t) (TermFor t)
+type instance TermF (Term t v) = t
+type instance Var   (Term t v) = v
+type instance Id    (Term t v) = Id1 t
+
 foldTerm :: Functor t => (a -> b) -> (t b -> b) -> Term t a -> b
 foldTerm = foldFree
 foldTermM :: (Traversable t, Monad m) => (a -> m b) -> (t b -> m b) -> Term t a -> m b
@@ -194,6 +211,9 @@ updateAtM pos f t = runStateT (go pos t) t where
 newtype WithNote note a = Note (note, a) deriving (Show)
 newtype WithNote1 note f a = Note1 (note, f a) deriving (Show)
 
+type instance Id  (WithNote  n a) = Id a
+type instance Id1 (WithNote1 n f) = Id1 f
+
 instance Eq a => Eq (WithNote n a) where Note (_,a) == Note (_,b) = a == b
 --instance (Functor f, Eq (Free f a)) => Eq (Free (WithNote1 n f) a) where
 --    a == b = f a == f b  where f = mapTerm (\(Note1 (_,x)) -> x)
@@ -238,12 +258,12 @@ occurrences sub parent = [ note t | t <- subterms(annotateWithPos parent), dropN
 -- -----
 -- * Ids
 -- -----
-class (Ord (TermId f)) => HasId f where
-    type TermId f :: *
-    getId :: f a -> Maybe (TermId f)
+type instance Id1 (Free f) = Id1 f
+
+class (Ord (Id1 f)) => HasId f where
+    getId :: f a -> Maybe (Id1 f)
 
 instance HasId f => HasId (Free f) where
-    type TermId (Free f) = TermId f
     getId = evalFree (const Nothing) getId
 
 class MapId f where mapId  :: (id -> id') -> f id a -> f id' a
@@ -252,7 +272,7 @@ class MapId f where mapId  :: (id -> id') -> f id a -> f id' a
 
 instance Bitraversable f => MapId f where mapIdM f = bitraverse f pure
 
-rootSymbol :: HasId f => Term f v -> Maybe (TermId f)
+rootSymbol :: HasId f => Term f v -> Maybe (Id1 f)
 rootSymbol = getId
 
 mapRootSymbol :: (Functor (f id), MapId f) => (id -> id) -> Term (f id) v -> Term (f id) v
@@ -268,6 +288,7 @@ mapTermSymbolsM f = mapFreeM (mapIdM f)
 -- * Substitutions
 -- ---------------
 type Substitution termF var = SubstitutionF var (Term termF var)
+type SubstitutionFor t = Substitution (TermF t) (Var t)
 
 newtype SubstitutionF k a = Subst {unSubst::Map k a}
   deriving (Functor)
@@ -317,7 +338,7 @@ zonkTerm subst fv = (>>= f) where
            Nothing -> return (fv v)
            Just t  -> zonkTerm subst fv t
 
-zonkTermM :: (Traversable termF, Ord var, MonadEnv termF var m) =>
+zonkTermM :: (termF ~ TermFM m, var ~ VarM m, Traversable termF, Ord var, MonadEnv m) =>
              (var -> m var') -> Term termF var -> m(Term termF var')
 zonkTermM fv = liftM join . mapM f where
    f v = do val <- lookupVar v
@@ -346,11 +367,11 @@ isRenaming (Subst subst) = all isVar (Map.elems subst) && isBijective (Map.mapKe
 -- ** Environments: handling substitutions
 -- --------------------------------------
 -- | Instances need only to define 'varBind' and 'lookupVar'
-class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
-    varBind   :: var -> Term termF var -> m ()
-    lookupVar :: var -> m (Maybe (Term termF var))
+class Monad m => MonadEnv m where
+    varBind   :: VarM m -> Term (TermFM m) (VarM m) -> m ()
+    lookupVar :: VarM m -> m (Maybe (Term (TermFM m) (VarM m)))
 
-    find      :: var -> m(Term termF var)
+    find      :: VarM m -> m(Term (TermFM m) (VarM m))
     find v = do
       mb_t <- lookupVar v
       case mb_t of
@@ -358,7 +379,7 @@ class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
         Just t         -> varBind v t >> return t
         Nothing        -> return (Pure v)
 
-    zonkM :: (Traversable termF) => (var -> m var') -> Term termF var -> m(Term termF var')
+    zonkM :: (Traversable (TermFM m)) => (VarM m -> m var') -> TermForM m -> m(Term (TermFM m) var')
     zonkM fv = liftM join . mapM f where
         f v = do mb_t <- lookupVar v
                  case mb_t of
@@ -366,17 +387,44 @@ class (Functor termF, Monad m) => MonadEnv termF var m | m -> termF var where
                    Just t  -> zonkM fv t
 
 
-find' :: MonadEnv termF v m => Term termF v -> m(Term termF v)
+find' :: MonadEnv m => Term (TermFM m) (VarM m) -> m(Term (TermFM m) (VarM m))
 find' (Pure t) = find t
 find' t        = return t
 
-instance (Monad m, Functor t, Ord v) => MonadEnv t v (StateT (Substitution t v) m) where
-  varBind v t = do {e <- get; put (liftSubst (Map.insert v t) e)}
-  lookupVar t  = get >>= \s -> return(lookupSubst t s)
+newtype MEnvT t v m a = MEnv {unMEnv ::StateT (Substitution t v) m a} deriving (Functor, Monad, MonadPlus, MonadTrans)
 
-instance (Monad m, Functor t, Ord v) => MonadEnv t v (StateT (Substitution t v, a) m) where
-  varBind v = withFst . varBind v
-  lookupVar = withFst . lookupVar
+type instance VarM  (MEnvT t v m) = v
+type instance TermFM (MEnvT t v m) = t
+instance (Monad m, Functor t, Ord v) => MonadEnv (MEnvT t v m) where
+  varBind v t = do {e <- MEnv get; MEnv $ put (liftSubst (Map.insert v t) e)}
+  lookupVar t  = MEnv get >>= \s -> return(lookupSubst t s)
+
+instance (v ~ VarM m, Rename v, MonadVariant m) => MonadVariant (MEnvT t v m) where
+--  type MonadVariant.VarM (MEnvT t v m) = MonadVariant.VarM m
+  freshVar = lift freshVar
+
+#ifdef LOGICT
+deriving instance MonadLogic m => MonadLogic (MEnvT t v m)
+
+instance (Functor (TermFM m), MonadEnv m) => MonadEnv (LogicT m) where
+  varBind = (lift.) . varBind
+  lookupVar = lift . lookupVar
+#endif
+
+execMEnv :: (Monad m, Ord v, Functor t) => MEnvT t v m a -> m (Substitution t v)
+execMEnv = (`execStateT` mempty) . unMEnv
+
+evalMEnv :: (Monad m, Ord v, Functor t) => MEnvT t v m a -> m a
+evalMEnv = (`evalStateT` mempty) . unMEnv
+
+runMEnv :: (Monad m, Ord v, Functor t) => MEnvT t v m a -> m (a, Substitution t v)
+runMEnv  = (`runStateT` mempty) . unMEnv
+
+-- instance (Monad m, Functor t, Ord v) => MonadEnv (StateT (Substitution t v, a) m) where
+--   type TermFM (StateT (Substitution t v, a) m) = t
+--   type VarM   (StateT (Substitution t v, a) m) = v
+--   varBind v = withFst . varBind v
+--   lookupVar = withFst . lookupVar
 
 -- ------------------------------------
 -- * Unification (without occurs check)
@@ -385,10 +433,10 @@ unifies :: forall termF var. (Unify termF, Ord var) => Term termF var -> Term te
 unifies t u = isJust (unify t u)
 
 unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
-unify t u = fmap zonkSubst (execStateT (unifyM t u) mempty)
+unify t u = fmap zonkSubst (execMEnv (unifyM t u))
 
 class (Traversable termF, Eq (termF ())) => Unify termF
-  where unifyM :: (MonadEnv termF var m, Ord var) => Term termF var -> Term termF var -> m ()
+  where unifyM :: (MonadEnv m, Ord (VarM m), TermFM m ~ termF) => Term (TermFM m) (VarM m) -> Term (TermFM m) (VarM m) -> m ()
 
 -- Generic instance
 instance (Traversable termF, Eq (termF ())) => Unify termF where
@@ -418,7 +466,7 @@ instance (Traversable termF, Eq (termF ())) => Unify termF where
 >      unifyOne t         s           = zipFree_ unifyM t s
 -}
 
-occursIn :: (Ord v, Traversable t, MonadEnv t v m) => v -> Term t v -> m Bool
+occursIn :: (Ord (VarM m), Traversable (TermFM m), MonadEnv m) => VarM m -> Term (TermFM m) (VarM m) -> m Bool
 occursIn v t = do
   t' <- zonkM return t
   return (v `Set.member` Set.fromList (vars t'))
@@ -430,12 +478,12 @@ matches :: forall termF var. (Match termF, Ord var) => Term termF var -> Term te
 matches t u = isJust (match t u)
 
 match :: (Match termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
-match t u = execStateT (matchM t u) mempty
+match t u = execMEnv (matchM t u)
 
 class (Eq (termF ()), Traversable termF) => Match termF where
-    matchM :: (Eq var, MonadEnv termF var m) => Term termF var -> Term termF var -> m ()
+    matchM :: (Eq (VarM m), MonadEnv m, termF ~ TermFM m) => Term termF (VarM m) -> Term termF (VarM m) -> m ()
 
-instance (Traversable termF, Eq (termF ())) =>  Match termF where
+instance (Traversable termF, Eq (termF ())) => Match termF where
   matchM t s = do
     t' <- find' t
     matchOne t' s
@@ -463,31 +511,8 @@ instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Ter
 -- * Variants of terms and rules
 -- --------------------------------
 
--- | Renaming of variables
-class Rename v where
-    rename :: v      -- ^ Original variable
-           -> v      -- ^ Fresh variable
-           -> v      -- ^ Result of renaming the original variable to the fresh variable
-
-class (Rename var, Monad m) => MonadVariant var m | m -> var where
-    freshVar :: m var
-    renaming :: var -> m var
-    renaming v = do {v' <- freshVar; return $ rename v v'}
-
-instance (Enum v, Rename v, Monad m) => MonadVariant v (StateT (Sum Int) m) where
-    freshVar = do { Sum i <- get; put (Sum $ succ i); return (toEnum i)}
-
-instance (Rename v, Monad m) => MonadVariant v (StateT [v] m) where
-    freshVar = do { x:xx <- get; put xx; return x}
-
-instance (Rename v, Monad m) => MonadVariant v (StateT (a,[v]) m) where
-    freshVar = withSnd freshVar
-
-instance (Monoid w, Rename v, Monad m) => MonadVariant v (RWST r w [v] m) where
-    freshVar = do { x:xx <- get; put xx; return x}
-
-fresh ::  (Traversable t, MonadEnv t var m, MonadVariant var m) =>
-         Term t var -> m (Term t var)
+fresh ::  (v ~ VarM m, Traversable (TermFM m), MonadEnv m, MonadVariant m) =>
+         Term (TermFM m) v -> m (Term (TermFM m) v)
 fresh = go where
   go  = liftM join . T.mapM f
   f v = do
@@ -496,55 +521,69 @@ fresh = go where
             Nothing -> do {v' <- renaming v; varBind v (return v'); return (return v')}
             Just v' -> return v'
 
-freshWith :: (Traversable t, MonadEnv t (Either var var') m, MonadVariant var' m) =>
-               (var -> var' -> var') -> Term t var -> m (Term t var')
+freshWith :: (Traversable (TermFM m), MonadEnv m, MonadVariant m) =>
+               (VarM m -> VarM m -> VarM m) -> TermForM m -> m (TermForM m)
 freshWith fv = go where
   go  = liftM join . T.mapM f
   f v = do
-          mb_v' <- lookupVar (Left v)
+          mb_v' <- lookupVar v
           case mb_v' of
-            Nothing -> do {v' <- fv v `liftM` freshVar; varBind (Left v) (return $ Right v'); return (return v')}
-            Just (Pure (Right v')) -> return (Pure v')
-            _ -> error "impossible: fresh'"
+            Nothing -> do {v' <- fv v `liftM` freshVar; varBind v (return v'); return (return v')}
+            Just (Pure v') -> return (Pure v')
+
+freshWith' :: (Rename var, Ord var', Ord var, var' ~ VarM m, Traversable t, MonadVariant m) =>
+               (var -> var' -> var') -> Term t var -> m (Term t var')
+freshWith' fv t = variantsWith Right $ evalMEnv $
+                  (liftM.fmap) (\(Right x) -> x)
+                               (freshWith fv' (fmap Left t))
+ where
+  fv' (Left v) (Right v') = Right (fv v v')
+
 
 variant :: forall v t t'. (Ord v, Rename v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
-variant u t = fresh u `evalStateT` (mempty :: Substitution t v) `evalState` ([toEnum 0..] \\ vars t)
+variant u t = evalMEnv(fresh u) `runVariantT` ([toEnum 0..] \\ vars t)
 
 -- ------------------------------
 -- Liftings of monadic operations
 -- ------------------------------
-instance (Monoid w, Functor t, MonadEnv t var m) => MonadEnv t var (WriterT w m) where
+
+--type instance VarM  (MVariantT v m) = VarM m
+type instance TermFM (MVariantT v m) = TermFM m
+instance (Functor (TermFM m), v ~ VarM m, MonadEnv m) => MonadEnv (MVariantT v m) where
+  varBind   = (lift.) . varBind
+  lookupVar = lift . lookupVar
+
+type instance TermFM (WrappedMVariant v v' m) = TermFM m
+instance (MonadEnv m, v' ~ VarM m) => MonadEnv (WrappedMVariant v v' m) where
   varBind = (lift.) . varBind
   lookupVar = lift . lookupVar
 
-instance MonadEnv t v m => MonadEnv t v (ListT m) where
+type instance TermFM (WriterT w m) = TermFM m
+type instance VarM  (WriterT w m) = VarM m
+instance (Monoid w, Functor (TermFM m), MonadEnv m) => MonadEnv (WriterT w m) where
+  varBind   = (lift.) . varBind
+  lookupVar = lift . lookupVar
+
+type instance TermFM (ListT m) = TermFM m
+type instance VarM  (ListT m) = VarM m
+instance MonadEnv m => MonadEnv (ListT m) where
   varBind   = (lift.) . varBind
   lookupVar = lift    . lookupVar
 
-instance (Functor t, MonadEnv t var m) => MonadEnv t var (StateT s m) where
-  varBind = (lift.) . varBind
+type instance TermFM (StateT s m) = TermFM m
+type instance VarM  (StateT s m) = VarM m
+instance (Functor (TermFM m), MonadEnv m) => MonadEnv (StateT s m) where
+  varBind   = (lift.) . varBind
   lookupVar = lift . lookupVar
 
-instance (Functor t, MonadEnv t var m) => MonadEnv t var (ReaderT r m) where
-  varBind = (lift.) . varBind
+type instance TermFM (ReaderT r m) = TermFM m
+type instance VarM  (ReaderT r m) = VarM m
+instance (Functor (TermFM m), MonadEnv m) => MonadEnv (ReaderT r m) where
+  varBind   = (lift.) . varBind
   lookupVar = lift . lookupVar
 
-instance (Monoid w, Functor t, MonadEnv t var m) => MonadEnv t var (RWST r w s m) where
+type instance TermFM (RWST r w s m) = TermFM m
+type instance VarM  (RWST r w s m) = VarM m
+instance (Monoid w, Functor (TermFM m), MonadEnv m) => MonadEnv (RWST r w s m) where
   varBind = (lift.) . varBind
   lookupVar = lift . lookupVar
-
-instance MonadVariant var m => MonadVariant var (ListT    m) where
-    freshVar = lift freshVar
-    renaming = lift . renaming
-
-instance MonadVariant var m => MonadVariant var (StateT s m) where
-    freshVar = lift freshVar
-    renaming = lift . renaming
-
-instance (Monoid w, MonadVariant var m) => MonadVariant var (RWST r w s m) where
-    freshVar = lift freshVar
-    renaming = lift . renaming
-
-instance (MonadVariant var m,Monoid w) => MonadVariant var (WriterT w m) where
-    freshVar = lift freshVar
-    renaming = lift . renaming

@@ -1,32 +1,39 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverlappingInstances, UndecidableInstances, FlexibleContexts #-}
 module Data.Term.IOVar where
 
+import Control.Applicative
 import Control.Arrow
+import Control.Monad.Trans
 import Control.Monad.Free
+import Control.Monad.Variant
+import qualified Control.Monad.Variant as MonadVariant
 import Data.IOStableRef
 import qualified Data.Map as Map
 import Data.Term
 import Data.Traversable as T
-import Prelude as P
+import qualified Prelude as P
+import Prelude hiding (catch)
 
 newtype IOVar termF = IOVar (IOStableRef( Maybe (Free termF (IOVar termF)))) deriving (Eq,Ord, Show)
 
 
-unifiesIO :: (Unify t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> IO Bool
+unifiesIO :: (Unify t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> TIO t Bool
 unifiesIO t u = (unifyM t u >> return True) `catch` \_ -> return False
 
-matchesIO :: (Match t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> IO Bool
+matchesIO :: (Match t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> TIO t Bool
 matchesIO t u = (matchM t u >> return True) `catch` \_ -> return False
 
-instantiate :: (Traversable term,
-                MonadVariant (IOVar term) m, MonadEnv term (Either var (IOVar term)) m) =>
+instantiate :: (term ~ TermFM m, VarM m ~ Either var (IOVar term), Traversable term, MonadVariant m, MonadEnv m) =>
                Free term var -> m (Free term (IOVar term))
-instantiate = freshWith (flip const)
+instantiate t = (liftM.fmap) (\(Right x) -> x)
+                             (freshWith (flip const)
+                                        (fmap Left t))
 
 getInst :: (Traversable t, Ord var,  Eq (Free t (IOVar t))) =>
-           Substitution t (Either var (IOVar t)) -> IO (Substitution t var)
+           Substitution t (Either var (IOVar t)) -> TIO t (Substitution t var)
 getInst (Subst s) = do
     map0' <- P.mapM (secondM (zonkM (\v -> let Just v' = lookup (Pure v) inversemap in return v'))) map0
     return $ fromListSubst map0'
@@ -39,10 +46,17 @@ getInst (Subst s) = do
 
 instance Rename (IOVar t) where rename _ = id
 
-instance Traversable termF => MonadEnv termF (IOVar termF) IO where
-  varBind (IOVar v) t = writeIOStableRef v (Just t)
-  lookupVar (IOVar v) = readIOStableRef  v
+newtype TIO (t :: * -> *) a = TIO {tio::IO a} deriving (Applicative, Functor, Monad, MonadIO)
 
-instance MonadVariant (IOVar termF) IO where
-  freshVar = IOVar `liftM` newIOStableRef Nothing
+catch m h = TIO (P.catch (tio m) (tio.h))
+
+type instance VarM   (TIO t) = IOVar t
+type instance TermFM (TIO t) = t
+instance Traversable t => MonadEnv (TIO t) where
+  varBind (IOVar v) t = liftIO $ writeIOStableRef v (Just t)
+  lookupVar (IOVar v) = liftIO $ readIOStableRef  v
+
+type instance MonadVariant.VarM (TIO t) = IOVar t
+instance MonadVariant (TIO t) where
+  freshVar = IOVar `liftM` liftIO(newIOStableRef Nothing)
   renaming _ = freshVar

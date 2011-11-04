@@ -1,5 +1,5 @@
 name: term
-version: 0.1.20111100
+version: 0.2.20111120
 Cabal-Version:  >= 1.2.3
 build-type: Simple
 license: PublicDomain
@@ -31,7 +31,13 @@ Library
                GeneralizedNewtypeDeriving
 
   exposed-modules:
+    Control.Monad.Variant
     Data.Term,
+    Data.Id.Family,
+    Data.Term.Family,
+    Data.Var.Family,
+    Data.Rule.Family,
+    Data.Term.Variables,
     Data.Term.Rules,
     Data.Term.Simple,
     Data.Term.Var,

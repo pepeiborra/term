@@ -1,7 +1,11 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+
 module Data.Term.Narrowing (
   contexts, fill, (|>),
   isRNF,
@@ -20,6 +24,7 @@ import Control.Arrow
 import Control.Monad.Logic
 #endif
 import Control.Monad.State
+import Control.Monad.Variant
 import Data.Foldable (Foldable)
 import Data.Monoid
 import Data.Traversable (Traversable)
@@ -71,7 +76,7 @@ contexts t = [ (fmap fromRight t_i, u, [i])
 -- ------------
 
 {-# INLINE narrowStepBasic #-}
-narrowStepBasic :: (Unify t, Ord v, MonadPlus m, MonadVariant v m, MonadEnv t v m) =>
+narrowStepBasic :: (Unify t, Ord v, MonadPlus m, MonadVariant m, MonadEnv m, VarM m ~ v, t ~ TermFM m) =>
                    [Rule t v] -> Term t v -> m (Term t v, Position)
 narrowStepBasic rr t = go (t, mempty, [])
     where go (t, ct,pos) = do { t' <- narrowTop t; return (ct |> t', pos)}
@@ -107,8 +112,18 @@ narrows rr t = second (restrictTo (vars t)) `liftM` narrows' rr t
 -- ** Dirty versions
 --  These do not trim the substitution before returning
 
-run   :: (Enum v, Eq v, Monoid s, Functor t, Foldable t, Monad m) => (Term t v -> StateT (s, [v]) m a) -> Term t v -> m (a, s)
-run f t = second fst `liftM` (f t `runStateT` (mempty, freshVars)) where
+-- Monad stacking both monadvariant and monadenv.
+-- TODO Manually roll for speed.
+newtype NarrowingM t v m a = NarrowingM {unNarrowingM :: MVariantT v (MEnvT t v m) a} deriving (Functor, Monad, MonadPlus, MonadEnv, MonadVariant)
+type instance VarM (NarrowingM t v m) = v
+type instance TermFM (NarrowingM t v m) = t
+
+#ifdef LOGICT
+deriving instance MonadLogic m => MonadLogic (NarrowingM t v m)
+#endif
+
+run   :: (Enum v, Ord v, Functor t, Foldable t, Monad m) => (Term t v -> NarrowingM t v m a) -> Term t v -> m (a, Substitution t v)
+run f t = runMEnv $ runVariantT' freshVars $ unNarrowingM $ f t where
     freshVars = [toEnum (1 + maximum ( 0 : map fromEnum (vars t))) ..]
 
 -- | one step
@@ -124,7 +139,7 @@ narrow1P' rr = liftM (second zonkSubst) . run (narrowStepBasic rr >=> firstM (zo
 narrow' :: (Ord v, Enum v, Rename v, Unify t, MonadLogic m, Eq (Free t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 narrow' rr = liftM (second zonkSubst) . run (fixMP(narrowStepBasic rr >=> zonkM return . fst))
 #else
-narrow' :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m, Eq (Free t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+narrow' :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m,  Eq (Free t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 narrow' rr = liftM (second zonkSubst) . run (fixM_Eq(narrowStepBasic rr >=> zonkM return . fst))
 #endif
 
@@ -138,7 +153,7 @@ narrows' rr = liftM (second zonkSubst) . run(closureMP(narrowStepBasic rr >=> zo
 
 #ifdef LOGICT
 -- | Innermost narrowing
-innNarrowing :: (Unify t, Ord v, Enum v, Rename v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+innNarrowing :: (Unify t, Ord v, Enum v, Rename v, VarM m ~ v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 innNarrowing rr t = do
   (t', s) <- run (fixMP (innStepBasic rr >=> zonkM return)) t
   return (t', zonkSubst s)
@@ -148,7 +163,7 @@ innBnarrowing :: (Unify t, Ord v, Enum v, Rename v, MonadLogic m) => [Rule t v] 
 innBnarrowing rr t = second (restrictTo (vars t)) `liftM` run go t where go = fixMP (innStepBasic rr)
 
 -- TODO: Prove that this implementation really fulfills the innermost restriction
-innStepBasic :: (Ord v, Unify t, MonadEnv t v m, MonadVariant v m, MonadLogic m) => [Rule t v] -> Term t v -> m(Term t v)
+innStepBasic :: (Ord v, Unify t, TermFM m ~ t, VarM m ~ v, MonadEnv m, MonadVariant m, MonadLogic m) => [Rule t v] -> Term t v -> m(Term t v)
 innStepBasic rr t = do
      rr' <- mapM getFresh rr
      let go (t, ct) = ifte (msum [go (t, ct`mappend`ct1) | (t, ct1,_) <- contexts t]) -- Try

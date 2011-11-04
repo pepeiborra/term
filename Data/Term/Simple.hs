@@ -11,10 +11,13 @@ import Data.Foldable (Foldable(..), msum)
 import Data.Traversable
 import Text.PrettyPrint.HughesPJClass
 
-import Data.Term
+import qualified Data.Id.Family as Family
+import Data.Term hiding (TermF)
 
 data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show)
 type Term1 id = Free (TermF id)
+
+type instance Family.Id1 (TermF id) = id
 
 term :: id -> [Term1 id a] -> Term1 id a
 term f = Impure . Term f
@@ -42,7 +45,6 @@ instance Eq id => Unify (TermF id) where
                                            | otherwise = fail "structure mismatch"
 
 instance Ord id =>  HasId (TermF id) where
-    type TermId (TermF id) = id
     getId (Term id _) = Just id
 
 instance MapId TermF where

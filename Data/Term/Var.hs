@@ -1,7 +1,7 @@
 module Data.Term.Var where
 
 import Control.Monad.Free
-import Data.Term
+import Data.Term hiding (Var)
 
 data Var = VName String | VAuto Int deriving (Eq, Ord, Show)
 
