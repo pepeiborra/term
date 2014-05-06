@@ -1,5 +1,5 @@
-name: term
-version: 0.2.20111120
+name: narradar-term
+version: 0.3
 Cabal-Version:  >= 1.2.3
 build-type: Simple
 license: PublicDomain
