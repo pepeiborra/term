@@ -1,11 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverlappingInstances, UndecidableInstances, FlexibleContexts #-}
 module Data.Term.IOVar where
 
 import Control.Applicative
 import Control.Arrow
+import qualified Control.Exception as CE
 import Control.Monad.Trans
 import Control.Monad.Free
 import Control.Monad.Variant
@@ -15,18 +17,18 @@ import qualified Data.Map as Map
 import Data.Term
 import Data.Traversable as T
 import qualified Prelude as P
-import Prelude hiding (catch)
+import Prelude
 
 newtype IOVar termF = IOVar (IOStableRef( Maybe (Free termF (IOVar termF)))) deriving (Eq,Ord, Show)
 
 
 unifiesIO :: (Unify t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> TIO t Bool
-unifiesIO t u = (unifyM t u >> return True) `catch` \_ -> return False
+unifiesIO t u = (unifyM t u >> return True) `catch` \(_ :: CE.SomeException) -> return False
 
 matchesIO :: (Match t, Eq (IOVar t)) => Free t (IOVar t) -> Free t (IOVar t) -> TIO t Bool
-matchesIO t u = (matchM t u >> return True) `catch` \_ -> return False
+matchesIO t u = (matchM t u >> return True) `catch` \(_ :: CE.SomeException) -> return False
 
-instantiate :: (term ~ TermFM m, VarM m ~ Either var (IOVar term), Traversable term, MonadVariant m, MonadEnv m) =>
+instantiate :: (term ~ TermF m, Var m ~ Either var (IOVar term), Traversable term, MonadVariant m, MonadEnv m) =>
                Free term var -> m (Free term (IOVar term))
 instantiate t = (liftM.fmap) (\(Right x) -> x)
                              (freshWith (flip const)
@@ -48,15 +50,15 @@ instance Rename (IOVar t) where rename _ = id
 
 newtype TIO (t :: * -> *) a = TIO {tio::IO a} deriving (Applicative, Functor, Monad, MonadIO)
 
-catch m h = TIO (P.catch (tio m) (tio.h))
+catch m h = TIO (CE.catch (tio m) (tio.h))
 
-type instance VarM   (TIO t) = IOVar t
-type instance TermFM (TIO t) = t
+type instance Var   (TIO t) = IOVar t
+type instance TermF (TIO t) = t
 instance Traversable t => MonadEnv (TIO t) where
   varBind (IOVar v) t = liftIO $ writeIOStableRef v (Just t)
   lookupVar (IOVar v) = liftIO $ readIOStableRef  v
 
-type instance MonadVariant.VarM (TIO t) = IOVar t
+type instance MonadVariant.Var (TIO t) = IOVar t
 instance MonadVariant (TIO t) where
   freshVar = IOVar `liftM` liftIO(newIOStableRef Nothing)
   renaming _ = freshVar

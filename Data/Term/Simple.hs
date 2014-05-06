@@ -17,7 +17,7 @@ import Data.Term hiding (TermF)
 data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show)
 type Term1 id = Free (TermF id)
 
-type instance Family.Id1 (TermF id) = id
+type instance Family.Id (TermF id) = id
 
 term :: id -> [Term1 id a] -> Term1 id a
 term f = Impure . Term f

@@ -11,7 +11,7 @@ import Data.List
 import Data.Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Term (MonadEnv, Term, TermF, TermFM, Substitution, evalMEnv, fresh)
+import Data.Term (MonadEnv, Term, TermF, Substitution, evalMEnv, fresh)
 import qualified Data.Term as MonadEnv
 import Data.Traversable as T
 import qualified Data.Term.Var
@@ -40,16 +40,16 @@ instance GetVars (IOVar t) where
 
 
 class GetFresh thing where
-    getFreshM :: (TermF thing ~ TermFM m, Var thing ~ VarM m, Traversable (TermF thing), MonadEnv m, MonadVariant m) => thing -> m thing
+    getFreshM :: (TermF thing ~ TermF m, Var thing ~ Var m, Traversable (TermF thing), MonadEnv m, MonadVariant m) => thing -> m thing
 
 instance (Traversable termF) => GetFresh (Term termF var) where getFreshM = fresh
 instance (Ord a, GetFresh a) => GetFresh (Set a)          where getFreshM = liftM Set.fromList . getFreshM . Set.toList
 instance GetFresh t => GetFresh [t] where getFreshM = getFreshMdefault
 
-getFreshMdefault :: (Traversable t, GetFresh a, MonadVariant m, MonadEnv m, Var a ~ VarM m, term ~ TermF a, term ~ TermFM m, Traversable term) => t a -> m (t a)
+getFreshMdefault :: (Traversable t, GetFresh a, MonadVariant m, MonadEnv m, Var a ~ Var m, term ~ TermF a, term ~ TermF m, Traversable term) => t a -> m (t a)
 getFreshMdefault = T.mapM getFreshM
 
-getFresh :: (MonadVariant m, Ord (VarM m), GetFresh thing, Traversable (TermF thing), Var thing ~ VarM m) =>
+getFresh :: (MonadVariant m, Ord (Var m), GetFresh thing, Traversable (TermF thing), Var thing ~ Var m) =>
             thing -> m thing
 getFresh t = evalMEnv (getFreshM t)
 

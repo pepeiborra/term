@@ -184,15 +184,15 @@ getArity l f = fromMaybe (error ("getArity: symbol not in signature"))
                          (Map.lookup f constructorSymbols `mplus` Map.lookup f definedSymbols)
   where  Sig{..} = getSignature l
 
-isConstructorTerm :: (Functor t, Foldable t, HasId t, HasSignature sig, Family.Id1 t ~ Family.Id sig) => sig -> Term t v -> Bool
+isConstructorTerm :: (Functor t, Foldable t, HasId t, HasSignature sig, Family.Id t ~ Family.Id sig) => sig -> Term t v -> Bool
 isConstructorTerm sig t = (`Set.member` getConstructorSymbols sig) `all` collectIds t
 
-isRootDefined :: ( HasId t, HasSignature sig, Family.Id1 t ~ Family.Id sig) => sig -> Term t v -> Bool
+isRootDefined :: ( HasId t, HasSignature sig, Family.Id t ~ Family.Id sig) => sig -> Term t v -> Bool
 isRootDefined sig t
    | Just id <- rootSymbol t = id `Set.member` getDefinedSymbols sig
    | otherwise = False
 
-collectIds :: (Functor t, Foldable t, HasId t) => Term t v -> [Family.Id1 t]
+collectIds :: (Functor t, Foldable t, HasId t) => Term t v -> [Family.Id t]
 collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toList t))
 
 -- -------------
@@ -205,7 +205,7 @@ unifies' :: (Ord (Var t), GetUnifier t, Functor(TermF t)) => t -> t -> Bool
 unifies' s t = isJust (getUnifier s t)
 
 class GetUnifier t where
-  getUnifierM :: (MonadEnv m, Var t ~ VarM m, TermF t ~ TermFM m, Ord (Var t)) => t -> t -> m ()
+  getUnifierM :: (MonadEnv m, Var t ~ Var m, TermF t ~ TermF m, Ord (Var t)) => t -> t -> m ()
 
 instance (Eq var, Unify f) => GetUnifier (Term f var) where
   getUnifierM = unifyM
@@ -214,7 +214,7 @@ instance (GetUnifier t) => GetUnifier [t] where
 
 
 getUnifierMdefault :: (Ord (Var t), GetUnifier t, MonadEnv m, Functor f, Foldable f, Eq (f()),
-                      TermFM m ~ TermF t, VarM m ~ Var t) =>
+                      TermF m ~ TermF t, Var m ~ Var t) =>
                      f t -> f t -> m ()
 getUnifierMdefault t u
     | fmap (const ()) t == fmap (const ()) u = zipWithM_ getUnifierM (toList t) (toList u)
@@ -230,7 +230,7 @@ matches' :: (Ord (Var t), GetMatcher t, Functor (TermF t)) => t -> t -> Bool
 matches' s t = isJust (getMatcher s t)
 
 class GetMatcher t
-    where getMatcherM :: (MonadEnv m, Var t ~ VarM m, TermF t ~ TermFM m) => t -> t -> m ()
+    where getMatcherM :: (MonadEnv m, Var t ~ Var m, TermF t ~ TermF m) => t -> t -> m ()
 
 instance (Eq var, Match f) => GetMatcher (Term f var) where
   getMatcherM = matchM
@@ -238,7 +238,7 @@ instance (GetMatcher t) => GetMatcher [t] where
   getMatcherM = getMatcherMdefault
 
 getMatcherMdefault :: (GetMatcher t, MonadEnv m, Functor f, Foldable f, Eq (f()),
-                       TermF t ~ TermFM m, Var t ~ VarM m) =>
+                       TermF t ~ TermF m, Var t ~ Var m) =>
                      f t -> f t -> m ()
 getMatcherMdefault t u
     | fmap (const ()) t == fmap (const ()) u = zipWithM_ getMatcherM (toList t) (toList u)

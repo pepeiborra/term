@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, PolyKinds #-}
 module Data.Term.Family (
     module Data.Id.Family,
     module Data.Rule.Family,
@@ -12,9 +12,9 @@ import Data.Var.Family
 import Data.Set (Set)
 import Data.Map (Map)
 
-type family TermFM (m :: * -> *) :: * -> *
-type family TermF  t :: * -> *
+type family TermF  (t::k) :: * -> *
 
 type instance TermF  [t] = TermF  t
 type instance TermF (Set t) = TermF t
 type instance TermF (Map k a) = TermF a
+

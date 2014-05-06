@@ -38,11 +38,11 @@ rewrite1p :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Te
 rewrite1p rr t p = liftM fst $ updateAtM p (rewriteTop rr) t
 
 -- | Reflexive, Transitive closure
-rewrites :: (Ord v, Enum v, Rename v, v ~ VarM m, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v)
+rewrites :: (Ord v, Enum v, Rename v, v ~ Var m, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v)
 rewrites rr t = runVariantT' freshvars $ closureMP (liftM snd . rewriteStep rr) t
   where freshvars = [toEnum 0 ..] \\ vars t
 
-rewriteStep :: (Ord v, Match t, Rename v, v ~ VarM m, MonadVariant m, MonadPlus m) => [Rule t v] -> Term t v -> m (Position, Term t v)
+rewriteStep :: (Ord v, Match t, Rename v, v ~ Var m, MonadVariant m, MonadPlus m) => [Rule t v] -> Term t v -> m (Position, Term t v)
 rewriteStep rr t = do
    rr' <- mapM getFresh rr
    someSubtermDeep (rewriteTop rr') t

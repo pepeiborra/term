@@ -1,11 +1,10 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies,PolyKinds #-}
 module Data.Var.Family where
 
 import Data.Set (Set)
 import Data.Map (Map)
 
-type family VarM (m :: * -> *) :: *
-type family Var  t :: *
+type family Var  (t :: k)
 
 type instance Var  [t] = Var t
 type instance Var (Set t) = Var t

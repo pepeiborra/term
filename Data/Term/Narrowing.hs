@@ -76,7 +76,7 @@ contexts t = [ (fmap fromRight t_i, u, [i])
 -- ------------
 
 {-# INLINE narrowStepBasic #-}
-narrowStepBasic :: (Unify t, Ord v, MonadPlus m, MonadVariant m, MonadEnv m, VarM m ~ v, t ~ TermFM m) =>
+narrowStepBasic :: (Unify t, Ord v, MonadPlus m, MonadVariant m, MonadEnv m, Var m ~ v, t ~ TermF m) =>
                    [Rule t v] -> Term t v -> m (Term t v, Position)
 narrowStepBasic rr t = go (t, mempty, [])
     where go (t, ct,pos) = do { t' <- narrowTop t; return (ct |> t', pos)}
@@ -115,11 +115,14 @@ narrows rr t = second (restrictTo (vars t)) `liftM` narrows' rr t
 -- Monad stacking both monadvariant and monadenv.
 -- TODO Manually roll for speed.
 newtype NarrowingM t v m a = NarrowingM {unNarrowingM :: MVariantT v (MEnvT t v m) a} deriving (Functor, Monad, MonadPlus, MonadEnv, MonadVariant)
-type instance VarM (NarrowingM t v m) = v
-type instance TermFM (NarrowingM t v m) = t
+type instance Var (NarrowingM t v m) = v
+type instance TermF (NarrowingM t v m) = t
 
 #ifdef LOGICT
-deriving instance MonadLogic m => MonadLogic (NarrowingM t v m)
+-- deriving instance MonadLogic m => MonadLogic (NarrowingM t v m)
+instance MonadLogic m => MonadLogic (NarrowingM t v m) where
+  msplit m = NarrowingM $ (liftM.liftM) f (msplit (unNarrowingM m)) where
+   f (a,m') = (a, NarrowingM m')
 #endif
 
 run   :: (Enum v, Ord v, Functor t, Foldable t, Monad m) => (Term t v -> NarrowingM t v m a) -> Term t v -> m (a, Substitution t v)
@@ -153,7 +156,7 @@ narrows' rr = liftM (second zonkSubst) . run(closureMP(narrowStepBasic rr >=> zo
 
 #ifdef LOGICT
 -- | Innermost narrowing
-innNarrowing :: (Unify t, Ord v, Enum v, Rename v, VarM m ~ v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+innNarrowing :: (Unify t, Ord v, Enum v, Rename v, Var m ~ v, MonadLogic m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 innNarrowing rr t = do
   (t', s) <- run (fixMP (innStepBasic rr >=> zonkM return)) t
   return (t', zonkSubst s)
@@ -163,7 +166,7 @@ innBnarrowing :: (Unify t, Ord v, Enum v, Rename v, MonadLogic m) => [Rule t v] 
 innBnarrowing rr t = second (restrictTo (vars t)) `liftM` run go t where go = fixMP (innStepBasic rr)
 
 -- TODO: Prove that this implementation really fulfills the innermost restriction
-innStepBasic :: (Ord v, Unify t, TermFM m ~ t, VarM m ~ v, MonadEnv m, MonadVariant m, MonadLogic m) => [Rule t v] -> Term t v -> m(Term t v)
+innStepBasic :: (Ord v, Unify t, TermF m ~ t, Var m ~ v, MonadEnv m, MonadVariant m, MonadLogic m) => [Rule t v] -> Term t v -> m(Term t v)
 innStepBasic rr t = do
      rr' <- mapM getFresh rr
      let go (t, ct) = ifte (msum [go (t, ct`mappend`ct1) | (t, ct1,_) <- contexts t]) -- Try
