@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveFoldable #-}
 
 {-| This module works with an abstract notion of rule.
 
@@ -22,7 +23,7 @@ module Data.Term.Rules
   (RuleF(..), Rule, left, right, HasRules(..), swapRule, IsTRS(..),
    Signature(..), mapSignature, allSymbols, arities, HasSignature(..),
    getArity, getArities, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
-   isConstructorTerm, isRootDefined, collectIds,
+   isConstructorTerm, isRootDefined, isDuplicating, collectIds,
    GetVars(..),
    GetUnifier(..), getUnifier, unifies', equiv', equiv2', getUnifierMdefault,
    GetMatcher(..), getMatcher, matches', getMatcherMdefault,
@@ -102,6 +103,10 @@ right f (l :-> r) = l   :-> f r
 data Signature id = Sig {constructorSymbols, definedSymbols :: Map id Int}
    deriving (Eq, Ord, Show)
 
+instance Foldable Signature where
+  foldMap f Sig{..} =
+    foldMap f (Map.keys constructorSymbols) `mappend` foldMap f (Map.keys definedSymbols)
+
 type instance Family.Id (Signature id) = id
 
 instance Ord id => Monoid (Signature id) where
@@ -116,7 +121,7 @@ class Ord (Family.Id l) => HasSignature l where
 
 instance (HasId t, Foldable t) => HasSignature (Term t v) where
   getSignature t = Sig{ definedSymbols = Map.empty
-                        , constructorSymbols = all }
+                      , constructorSymbols = all }
      where
       all =  Map.fromList [(f,length (directSubterms t))
                                   | t <- subterms t
@@ -191,6 +196,16 @@ isRootDefined :: ( HasId t, HasSignature sig, Family.Id t ~ Family.Id sig) => si
 isRootDefined sig t
    | Just id <- rootSymbol t = id `Set.member` getDefinedSymbols sig
    | otherwise = False
+
+isDuplicating :: (Foldable termF, Functor termF, Ord v) => RuleF (Term termF v) -> Bool
+isDuplicating (l :-> r) = any (\(v,occurrences) -> occurrences > occurrences_in_l v)
+                              (Map.toList $ vars_r)
+  where
+      count xx = Map.fromListWith (+) [(x,1::Int) | x <- xx]
+      vars_r = count (vars r)
+      vars_l = count (vars l)
+      occurrences_in_l v = fromMaybe 0 $ Map.lookup v vars_l
+
 
 collectIds :: (Functor t, Foldable t, HasId t) => Term t v -> [Family.Id t]
 collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId t : concat (toList t))
