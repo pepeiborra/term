@@ -20,7 +20,7 @@ module Data.Term (
 -- * Variables
      Rename(..), isVar, vars, isLinear,
 -- * Annotating terms
-     WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos, annotateWithPosV,
+     WithNote(..), WithNote1(..), note, dropNote, noteV, annotateWithPos, annotateWithPosV, annotate,
 -- * Ids
      HasId(..), MapId(..), rootSymbol, mapRootSymbol, mapTermSymbols, mapTermSymbolsM,
 -- * Matching & Unification (without occurs check)
@@ -35,12 +35,14 @@ module Data.Term (
      ) where
 
 import Control.Applicative
-import Control.Monad (liftM, join, MonadPlus(..), msum, when)
+import Control.Category
+import Control.Comonad
+import Control.Monad (liftM, join, MonadPlus(..), when)
 import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, mapFreeM, evalFree, isPure)
 import Control.Monad.Free.Zip
 import Control.Monad.Identity (runIdentity)
 import Control.Monad.Trans (MonadTrans(..))
-import Control.Monad.Variant 
+import Control.Monad.Variant
 
 import Control.Monad.State(StateT(..), get, put, modify, evalStateT, execStateT)
 import Control.Monad.List(ListT)
@@ -52,8 +54,10 @@ import Control.Monad.Writer(WriterT)
 import Control.Monad.Logic (MonadLogic(msplit), LogicT)
 #endif
 
+import Data.Bifunctor
 import Data.Bitraversable
-import Data.Foldable (Foldable(..), toList)
+import Data.Bifoldable
+import Data.Foldable (Foldable(..), toList, msum)
 import Data.List ((\\))
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -67,7 +71,7 @@ import Data.Id.Family
 import Data.Var.Family
 import Data.Term.Family
 import Data.Term.Utils
-import Prelude as P hiding (mapM)
+import Prelude as P hiding (mapM,(.),id)
 
 -- --------
 -- * Terms
@@ -117,23 +121,15 @@ someSubterm' f  = evalTerm ( return . ([],) . return )
                            . liftM2 Impure
                            . interleaveM f)
 
-interleaveDeep :: forall m f a. (Monad m, Traversable f) =>
-                  (Free f a -> m (Free f a)) -> Free f a -> [m (Position, Free f a)]
-interleaveDeep f t = [liftM (\(t',_) -> (cursor,t')) $ evalRWST indexedComp cursor []
-                         | cursor <- positions t]
-   where
-     indexedComp = mapFreeM f' t
-
-     f' :: f (Free f a) -> RWST Position () Position m (f(Free f a))
-     f' = unsafeZipWithGM (\pos t -> modify (++[pos]) >> indexedf t)
-                          [0..]
-
-     indexedf :: Free f a -> RWST Position () Position m (Free f a)
-     indexedf x = do {pos <- get; cursor <- ask;
-                      if pos == cursor then lift(f x) else return x}
-
-someSubtermDeep :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Position, Term f a)
-someSubtermDeep f = msum . interleaveDeep f
+someSubtermDeep :: (Traversable t, MonadPlus m) =>
+                  (Term t a -> m(Term t a)) -> Term t a -> m (Position, Term t a)
+someSubtermDeep f t = (foldTerm (\_ -> mzero)
+                             (\(Note1(pos,Note1(me,subs))) ->
+                                liftM ((pos,) . (\me -> updateAt pos (const me) t)) me
+                                 `mplus` msum subs)
+                      . annotateWithPos
+                      . annotate f
+                      ) t
 
 collect :: (Foldable f, Functor f) => (Term f v -> Bool) -> Term f v -> [Term f v]
 collect pred t = [ u | u <- subterms t, pred u]
@@ -208,7 +204,7 @@ updateAtM pos f t = runStateT (go pos t) t where
                                where g j st = if i==j then go ii st else return st
  go _      _          = fail "updateAt: invalid position given"
 
-newtype WithNote note a = Note (note, a) deriving (Show)
+newtype WithNote note a    = Note  (note, a) deriving (Show)
 newtype WithNote1 note f a = Note1 (note, f a) deriving (Show)
 
 type instance Id  (WithNote  n a) = Id a
@@ -228,9 +224,9 @@ instance Ord (f a) => Ord ((WithNote1 n f) a) where Note1 (_,x) `compare` Note1 
 instance Functor f  => Functor (WithNote1 note f)  where fmap f (Note1 (p, fx))   = Note1 (p, fmap f fx)
 instance Foldable f => Foldable (WithNote1 note f) where foldMap f (Note1 (_p,fx)) = foldMap f fx
 instance Traversable f => Traversable (WithNote1 note f) where traverse f (Note1 (p, fx)) = (Note1 . (,) p) <$> traverse f fx
-instance Functor (WithNote n) where fmap f (Note (n,a)) = Note (n, f a)
-instance Foldable (WithNote n) where foldMap f (Note (_,a)) = f a
-instance Traversable (WithNote n) where traverse f (Note (n,a)) = (\a' -> Note (n,a')) <$> f a
+instance Bifunctor WithNote where bimap f g (Note (n,a)) = Note (f n, g a)
+instance Bifoldable WithNote where bifoldMap f g (Note (n,a)) = f n `mappend` g a
+instance Bitraversable WithNote where bitraverse f g (Note (n,a)) = (Note.) . (,) <$> f n <*> g a
 
 note :: Term (WithNote1 n t) (WithNote n a) -> n
 note (Impure (Note1 (n,_))) = n
@@ -242,10 +238,16 @@ noteV (Note (n,_)) = n
 dropNote :: Functor t => Free (WithNote1 n t) (WithNote n a) -> Free t a
 dropNote = foldTerm (\(Note (_,v)) -> return v) (\(Note1 (_,x)) -> Impure x)
 
-annotateWithPos :: Traversable f => Term f v -> Term (WithNote1 Position f) (WithNote Position v)
-annotateWithPos = go [] where
-     go pos = evalFree (\v -> return $ Note (pos,v))
-                       (\t -> Impure (Note1 (pos, unsafeZipWithG (\p' -> go (pos ++ [p'])) [1..] t))) -- TODO Remove the append at tail
+dropNote1 :: Functor t => Free (WithNote1 n t) a -> Free t a
+dropNote1 = foldTerm return (\(Note1 (_,x)) -> Impure x)
+
+annotateWithPos :: Traversable f => Free f a -> Free (WithNote1 Position f) (WithNote Position a)
+annotateWithPos = foldFree (\v -> return $ Note ([],v))
+                           (Impure . Note1 . ([],) . unsafeZipWithG(\i pp -> mapNote (i:) pp) [1..])
+  where
+    -- TODO replace with Bifunctor instance for WithNote1
+    mapNote f (Impure(Note1(n,t))) = Impure(Note1(f n, t))
+    mapNote f (Pure (Note (pp,v))) = Pure (Note(f pp, v))
 
 annotateWithPosV :: Traversable f => Term f v -> Term f (WithNote Position v)
 annotateWithPosV= go [] where
@@ -254,6 +256,14 @@ annotateWithPosV= go [] where
 
 occurrences :: (Traversable f, Eq (Term f v)) => Term f v -> Term f v -> [Position]
 occurrences sub parent = [ note t | t <- subterms(annotateWithPos parent), dropNote t == sub]
+
+annotate :: (Traversable f) => (Term f v -> note) -> Term f v -> Term (WithNote1 note f) v
+annotate f = foldTerm return (\t -> (Impure . Note1 . (,t) . f . Impure . fmap dropNote1) t)
+
+annotateM :: (Traversable f, Monad m) => (Term f v -> m note) -> Term f v -> m(Term (WithNote1 note f) v)
+annotateM f = foldTermM (return.return)
+                        (\t -> (liftM(Impure . Note1 . (,t)) . f . Impure . fmap dropNote1) t)
+
 
 -- -----
 -- * Ids
@@ -291,11 +301,11 @@ type Substitution termF var = SubstitutionF var (Term termF var)
 type SubstitutionFor t = Substitution (TermF t) (Var t)
 
 newtype SubstitutionF k a = Subst {unSubst::Map k a}
-  deriving (Functor)
+  deriving (Functor, Show)
 
 instance (Functor t, Ord v) => Monoid (Substitution t v) where
   mempty = Subst mempty
-  s1 `mappend` s2 =  (applySubst s2 <$> s1)
+  s1 `mappend` s2 =  liftSubst2 Map.union (applySubst s2 <$> s1) s2
 
 deriving instance (Eq v,   Eq (Term t v))   => Eq (Substitution t v)
 deriving instance (Ord v,  Ord (Term t v))  => Ord (Substitution t v)
@@ -306,6 +316,7 @@ emptySubst = Subst mempty
 
 liftSubst :: (Map v (Term t v) ->  Map v' (Term t' v')) -> Substitution t v -> Substitution t' v'
 liftSubst f (Subst e) = Subst (f e)
+liftSubst2 f (Subst e) (Subst b) = Subst (f e b)
 
 lookupSubst :: Ord v => v -> Substitution t v -> Maybe (Term t v)
 lookupSubst v (Subst m) = Map.lookup v m
@@ -502,14 +513,17 @@ instance (Traversable termF, Eq (termF ())) => Match termF where
 
 equiv :: forall termF var.
          (Ord var, Rename var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
-equiv t u = maybe False isRenaming (match (variant t u) u)
+equiv t u = t == u || maybe False isRenaming (match (variant t u) u)
 
+equiv2 :: (Rename var, Ord var, Enum var, Match termF) => Term termF var -> Term termF var -> Bool
 equiv2 t u = let t' = variant t u in matches t' u && matches u t'
 
 newtype EqModulo a = EqModulo {eqModulo::a}
 instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
     EqModulo t1 == EqModulo t2 = t1 `equiv2` t2
 
+instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Ord (EqModulo (Term t v)) where
+    t1 `compare` t2 = if t1 == t2 then EQ else compare (eqModulo t1) (eqModulo t2)
 -- --------------------------------
 -- * Variants of terms and rules
 -- --------------------------------
@@ -544,7 +558,8 @@ freshWith' fv t = variantsWith Right $ evalMEnv $
 
 
 variant :: forall v t t'. (Ord v, Rename v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
-variant u t = evalMEnv(fresh u) `runVariantT` ([toEnum 0..] \\ vars t)
+variant u t = runVariant' ([toEnum 0..] \\ vars t) (evalMEnv(fresh u))
+
 
 -- ------------------------------
 -- Liftings of monadic operations
