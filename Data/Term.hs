@@ -36,7 +36,6 @@ module Data.Term (
 
 import Control.Applicative
 import Control.Category
-import Control.Comonad
 import Control.Monad (liftM, join, MonadPlus(..), when)
 import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, mapFreeM, evalFree, isPure)
 import Control.Monad.Free.Zip
