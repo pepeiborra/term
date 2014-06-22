@@ -3,8 +3,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.Term.Rewriting (
+      isNF,
  -- * One step
-      rewrite1, rewrite1', rewrite1p,
+      rewrite1, rewrite1', rewrite1p, rewriteStep,
  -- * Big step
       rewrites, reduce
  ) where
@@ -18,13 +19,16 @@ import Data.List
 import Data.Foldable as F
 
 import Control.Monad.Variant
-import Data.Term
+import Data.Term hiding (Rule)
 import Data.Term.Rules
 import Data.Term.Utils
 
 ----------------------------------------
 -- * Rewriting
 ----------------------------------------
+
+isNF :: (Match t, Rename v, Ord v, Enum v) => [Rule t v] -> Term t v -> Bool
+isNF rr = null . drop 1 . rewrites rr
 
 rewrite1 :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m(Term t v)
 rewrite1 rr t = runVariantT' freshvars (snd `liftM` rewriteStep rr t)
@@ -38,7 +42,7 @@ rewrite1p :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Te
 rewrite1p rr t p = liftM fst $ updateAtM p (rewriteTop rr) t
 
 -- | Reflexive, Transitive closure
-rewrites :: (Ord v, Enum v, Rename v, v ~ Var m, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v)
+rewrites :: (Ord v, Enum v, Rename v, Match t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v)
 rewrites rr t = runVariantT' freshvars $ closureMP (liftM snd . rewriteStep rr) t
   where freshvars = [toEnum 0 ..] \\ vars t
 
@@ -47,6 +51,7 @@ rewriteStep rr t = do
    rr' <- mapM getFresh rr
    someSubtermDeep (rewriteTop rr') t
 
+rewriteTop :: (MonadPlus m, Ord v, Match t) => [RuleF (Term t v)] -> Term t v -> m (Term t v)
 rewriteTop rr t = F.msum $ forEach rr $ \r -> do
                           lhs:->rhs <- return r
                           case match lhs t of
