@@ -12,6 +12,7 @@ module Data.Term.Narrowing (
   narrow1, narrow1P, narrows, narrow,
   narrow1', narrow1P', narrows', narrow',
   narrowBasic, narrowsBasic, narrow1Basic,
+  qNarrow1P, qNarrow1P',
 #ifdef LOGICT
   innNarrowing, innBnarrowing,
 #endif
@@ -30,6 +31,7 @@ import Data.Monoid
 import Data.Traversable (Traversable)
 
 import Data.Term
+import Data.Term.Rewriting
 import Data.Term.Rules
 import Data.Term.Utils
 
@@ -153,6 +155,28 @@ narrows' rr = liftM (second zonkSubst) . run(closureMP(narrowStepBasic rr >=> zo
 ------------------------------
 -- * Narrowing under Strategies
 -- ---------------------------
+qNarrow1P :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
+qNarrow1P' :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
+qNarrow1P q rr t = second(restrictTo (vars t)) `liftM` qNarrow1P' q rr t
+qNarrow1P' q rr = liftM(second zonkSubst) . run (qNarrowStepBasic q rr >=> firstM(zonkM return))
+
+{-# INLINE qNarrowStepBasic #-}
+qNarrowStepBasic :: (Unify t, Enum v, Ord v, MonadPlus m, MonadVariant m, MonadEnv m, Var m ~ v, t ~ TermF m) =>
+                   [Term t v] -> [Rule t v] -> Term t v -> m (Term t v, Position)
+qNarrowStepBasic q rr t = go (t, mempty, [])
+    where go (t, ct,pos) = do { t' <- narrowTop t;
+                                return (ct |> t', pos)}
+                          `mplus`
+                           msum [go (t', ct `mappend` ct', pos ++ i)
+                                | (t', ct', i) <- contexts t]
+          narrowTop t = msum$ flip map rr $ \r -> do
+                          guard (not $ isVar t)
+                          lhs :-> rhs <- getFresh r
+                          unifyM lhs t
+                          lhs' <- zonkTermM return lhs
+                          forM_ (directSubterms lhs') (guard . isQNF)
+                          return rhs
+          isQNF = isNF [ qt :-> qt | qt <- q]
 
 #ifdef LOGICT
 -- | Innermost narrowing
