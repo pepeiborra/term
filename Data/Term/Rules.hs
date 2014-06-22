@@ -8,6 +8,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE PolyKinds #-}
 
 {-| This module works with an abstract notion of rule.
 
@@ -20,7 +21,7 @@
     operations which work with sets of terms.
 -}
 module Data.Term.Rules
-  (RuleF(..), Rule, left, right, HasRules(..), swapRule, IsTRS(..),
+  (RuleF(..), Rule, RuleFor, left, right, HasRules(..), swapRule, IsTRS(..),
    Signature(..), mapSignature, allSymbols, arities, HasSignature(..),
    getArity, getArities, getConstructorSymbols, getDefinedSymbols, getAllSymbols,
    isConstructorTerm, isRootDefined, isDuplicating, collectIds,
@@ -46,7 +47,7 @@ import qualified Data.Set as Set
 
 import Control.Monad.Variant
 
-import Data.Term
+import Data.Term hiding (Rule)
 import qualified Data.Term.Var as Var
 import Data.Term.IOVar
 import Data.Term.Variables
@@ -71,6 +72,7 @@ type instance TermF (RuleF a) = TermF a
 type instance Id (RuleF a) = Id a
 
 type Rule t v = RuleF (Term t v)
+type RuleFor (t :: k)  = Rule (TermF t) (Var t)
 
 {-# RULES "rules/tRS" forall x. tRS (rules x) = x #-}
 {-# RULES "tRS/rules" forall x. rules (tRS x) = x #-}
@@ -270,7 +272,13 @@ instance (v ~ Var thing, Enum v, Rename v, Ord v,
            EqModulo t1 == EqModulo t2 = t1 `equiv2'` t2
 
 equiv' :: (var ~ Var t, Ord var, Enum var, Rename var,
-          Traversable (TermF t), Ord (UnwrappedTermFor t),
-          GetUnifier t, GetVars t, GetFresh t) => t -> t -> Bool
-equiv' t u = maybe False isRenaming (getUnifier (getVariant t u) u)
+          Traversable (TermF t), Ord (TermFor t),
+          GetMatcher t, GetVars t, GetFresh t) => t -> t -> Bool
+equiv' t u = maybe False isRenaming (getMatcher (getVariant t u) u)
 equiv2' t u = let t' = getVariant t u in matches' t' u && matches' u t'
+
+instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Rule t v)) where
+    EqModulo t1 == EqModulo t2 = t1 `equiv'` t2
+
+instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Ord (EqModulo (Rule t v)) where
+    t1 `compare` t2 = if t1 == t2 then EQ else compare (eqModulo t1) (eqModulo t2)
