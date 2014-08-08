@@ -31,13 +31,15 @@ Library
                GeneralizedNewtypeDeriving
 
   exposed-modules:
+    Control.Monad.Env
     Control.Monad.Variant
     Data.Term,
+    Data.Term.Base,
     Data.Id.Family,
     Data.Term.Family,
     Data.Var.Family,
     Data.Rule.Family,
-    Data.Term.Variables,
+    Data.Term.Substitutions,
     Data.Term.Rules,
     Data.Term.Simple,
     Data.Term.Var,

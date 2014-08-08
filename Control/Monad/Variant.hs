@@ -9,8 +9,7 @@ module Control.Monad.Variant (
     Rename(..),
     MonadVariant(..),
     MVariantT(..), runVariantT, runVariantT', runVariant, runVariant',
-    WrappedMVariant, variantsWith,
-    Var
+    WrappedMVariant, variantsWith
     )where
 
 import Control.Applicative

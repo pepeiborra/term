@@ -8,6 +8,7 @@ import Control.Monad.Free
 import Data.Bifunctor
 import Data.Char (isAlpha)
 import Data.Foldable (Foldable(..), msum)
+import Data.Term.Substitutions
 import Data.Traversable
 import Text.PrettyPrint.HughesPJClass
 
@@ -29,8 +30,11 @@ termId :: MonadPlus m => Term1 id a -> m id
 termId = foldFree (const mzero) f where
     f (Term f tt) = return f `mplus` Data.Foldable.msum tt
 
+instance Eq id => Match (TermF id) where
+  matchStructure (Term a _) (Term b _) = a == b
+
 -- Specific instance for TermF, only for efficiency
-instance Eq id => Unify (TermF id) where
+instance Ord id => Unify (TermF id) where
   {-# SPECIALIZE instance Unify (TermF String) #-}
   unifyM = unifyF where
    unifyF t s = do
@@ -44,8 +48,9 @@ instance Eq id => Unify (TermF id) where
    zipTermM_ f (Term f1 tt1) (Term f2 tt2) | f1 == f2 = zipWithM_ f tt1 tt2
                                            | otherwise = fail "structure mismatch"
 
-instance Ord id =>  HasId (TermF id) where
-    getId (Term id _) = Just id
+instance Ord id =>  HasId1 (TermF id) where
+    getId1 (Term id _) = Just id
+    fromId1 id = Term id []
 
 instance MapId TermF where
     mapIdM f (Term id tt) = (`Term` tt) <$> f id

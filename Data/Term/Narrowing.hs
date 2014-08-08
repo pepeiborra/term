@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -32,6 +34,7 @@ import Data.Traversable (Traversable)
 
 import Data.Term
 import Data.Term.Rewriting
+import Data.Term.Substitutions
 import Data.Term.Rules
 import Data.Term.Utils
 
@@ -100,9 +103,10 @@ narrow1P rr t= second (restrictTo (vars t)) `liftM` narrow1P' rr t
 
 -- | narrowing to rigid normal form
 #ifdef LOGICT
-narrow :: (Ord v, Enum v, Rename v, Unify t, MonadLogic m, Eq (Free t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+narrow :: (Ord v, Enum v, Rename v, Unify t, MonadLogic m, Eq (Term t v)
+          ) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 #else
-narrow :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m, Eq (Free t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+narrow :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m, Eq (Term t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 #endif
 narrow  rr t = second (restrictTo (vars t)) `liftM` narrow' rr t
 
@@ -116,9 +120,12 @@ narrows rr t = second (restrictTo (vars t)) `liftM` narrows' rr t
 
 -- Monad stacking both monadvariant and monadenv.
 -- TODO Manually roll for speed.
-newtype NarrowingM t v m a = NarrowingM {unNarrowingM :: MVariantT v (MEnvT t v m) a} deriving (Functor, Monad, MonadPlus, MonadEnv, MonadVariant)
+newtype NarrowingM t v m a = NarrowingM {unNarrowingM :: MVariantT v (MEnvT t v m) a}
+                           deriving (Functor, Monad, MonadPlus, MonadVariant)
 type instance Var (NarrowingM t v m) = v
 type instance TermF (NarrowingM t v m) = t
+
+deriving instance (Functor t, Foldable t, Ord v, Monad m) => MonadEnv (NarrowingM t v m)
 
 #ifdef LOGICT
 -- deriving instance MonadLogic m => MonadLogic (NarrowingM t v m)
@@ -127,7 +134,8 @@ instance MonadLogic m => MonadLogic (NarrowingM t v m) where
    f (a,m') = (a, NarrowingM m')
 #endif
 
-run   :: (Enum v, Ord v, Functor t, Foldable t, Monad m) => (Term t v -> NarrowingM t v m a) -> Term t v -> m (a, Substitution t v)
+run   :: (Enum v, Ord v, Functor t, Foldable t, Monad m
+         ) => (Term t v -> NarrowingM t v m a) -> Term t v -> m (a, Substitution t v)
 run f t = runMEnv $ runVariantT' freshVars $ unNarrowingM $ f t where
     freshVars = [toEnum (1 + maximum ( 0 : map fromEnum (vars t))) ..]
 
@@ -141,10 +149,10 @@ narrow1P' rr = liftM (second zonkSubst) . run (narrowStepBasic rr >=> firstM (zo
 
 -- | narrowing to rigid normal form
 #ifdef LOGICT
-narrow' :: (Ord v, Enum v, Rename v, Unify t, MonadLogic m, Eq (Free t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+narrow' :: (Ord v, Enum v, Rename v, Unify t, MonadLogic m, Eq (Term t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 narrow' rr = liftM (second zonkSubst) . run (fixMP(narrowStepBasic rr >=> zonkM return . fst))
 #else
-narrow' :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m,  Eq (Free t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+narrow' :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m,  Eq (Term t v)) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 narrow' rr = liftM (second zonkSubst) . run (fixM_Eq(narrowStepBasic rr >=> zonkM return . fst))
 #endif
 
@@ -155,12 +163,17 @@ narrows' rr = liftM (second zonkSubst) . run(closureMP(narrowStepBasic rr >=> zo
 ------------------------------
 -- * Narrowing under Strategies
 -- ---------------------------
-qNarrow1P :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
-qNarrow1P' :: (Ord v, Enum v, Rename v, Unify t, MonadPlus m) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
+-- | Note that this function does not assume that the rules and the term have been renamed apart
+qNarrow1P :: ( Ord v, Enum v, Rename v, Unify t, MonadPlus m
+             ) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
 qNarrow1P q rr t = second(restrictTo (vars t)) `liftM` qNarrow1P' q rr t
+-- | Note that this function does not assume that the rules and the term have been renamed apart
+qNarrow1P' :: ( Ord v, Enum v, Rename v, Unify t, MonadPlus m
+              ) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
 qNarrow1P' q rr = liftM(second zonkSubst) . run (qNarrowStepBasic q rr >=> firstM(zonkM return))
 
 {-# INLINE qNarrowStepBasic #-}
+-- Note that this function does not assume that the rules and the term have been renamed apart
 qNarrowStepBasic :: (Unify t, Enum v, Ord v, MonadPlus m, MonadVariant m, MonadEnv m, Var m ~ v, t ~ TermF m) =>
                    [Term t v] -> [Rule t v] -> Term t v -> m (Term t v, Position)
 qNarrowStepBasic q rr t = go (t, mempty, [])
@@ -169,9 +182,8 @@ qNarrowStepBasic q rr t = go (t, mempty, [])
                           `mplus`
                            msum [go (t', ct `mappend` ct', pos ++ i)
                                 | (t', ct', i) <- contexts t]
-          narrowTop t = msum$ flip map rr $ \r -> do
+          narrowTop t = msum$ flip map rr $ \(lhs :-> rhs) -> do
                           guard (not $ isVar t)
-                          lhs :-> rhs <- getFresh r
                           unifyM lhs t
                           lhs' <- zonkTermM return lhs
                           forM_ (directSubterms lhs') (guard . isQNF)
@@ -221,7 +233,7 @@ narrowBasic :: (Ord v, Enum v, Rename v, Unify t, MonadLogic m) => [Rule t v] ->
 narrowBasic rr t = second (restrictTo (vars t)) `liftM`
                    run (fixMP (liftM fst . narrowStepBasic rr) >=> zonkM return) t
 #else
-narrowBasic :: (Ord v, Enum v, Rename v, Unify t, Eq (Free t v), MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+narrowBasic :: (Ord v, Enum v, Rename v, Unify t, Eq (Term t v), MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 narrowBasic rr t = second (restrictTo (vars t)) `liftM`
                    run (fixM_Eq (liftM fst . narrowStepBasic rr) >=> zonkM return) t
 #endif
