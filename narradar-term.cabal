@@ -19,7 +19,7 @@ Flag logict
 
 Library
   buildable: True
-  build-depends: base > 4, containers, mtl > 2, prettyclass, control-monad-free > 0.5, bifunctors
+  build-depends: base > 4, containers, mtl > 2, prettyclass, control-monad-free > 0.5, bifunctors, applicative-extras
 
   if flag(logict)
      build-depends: logict

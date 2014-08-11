@@ -7,10 +7,13 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE DeriveFoldable, DeriveTraversable #-}
+
 module Data.Term.Substitutions where
 
 import Control.Applicative
-
+import Control.Applicative.Compose
 import Control.Monad (MonadPlus, join, when)
 import Control.Monad (liftM)
 import Control.Monad.Cont (MonadTrans, lift)
@@ -42,6 +45,7 @@ import Prelude hiding (mapM)
 -- ---------------
 -- * Variables
 -- ---------------
+import Data.Maybe (fromMaybe)
 
 class GetVars t where
   getVars :: Ord (Var t) => t -> Set (Var t)
@@ -221,19 +225,25 @@ unify t u = fmap zonkSubst (execMEnv (unifyM t u))
 unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
 
 class (Traversable termF, Match termF) => Unify termF
-  where unifyM :: (MonadEnv m, Ord (Var m), TermF m ~ termF) => Term (TermF m) (Var m) -> Term (TermF m) (Var m) -> m ()
+  where unifyM :: (MonadEnv m, Ord (Var m), TermF m ~ termF) => Term termF (Var m) -> Term termF (Var m) -> m ()
 
 -- Generic instance
-instance (Traversable termF, Match termF) => Unify termF where
+instance (Match termF) => Unify termF where
+  unifyM :: forall m. (MonadEnv m, Ord(Var m), TermF m ~ termF) =>
+            Term termF (Var m) -> Term termF (Var m) -> m ()
   unifyM t s = do
     t' <- find' t
     s' <- find' s
     unifyOne t' s'
    where
+     unifyOne :: Term termF (Var m) -> Term termF (Var m) -> m ()
      unifyOne (Pure vt) s@(Pure vs) = when (vt /= vs) $ varBind vt s
      unifyOne (Pure vt) s           = varBind vt s
      unifyOne t           (Pure vs) = varBind vs t
-     unifyOne (Impure t)  (Impure s)= zipFoldableM_ unifyM t s
+     unifyOne (Impure t)  (Impure s)= do
+       constraints <- T.sequence(unifyM <$> Compose(Just t) <*> Compose(Just s))
+       when (not $ isJust $ decompose constraints) $ fail "structure mismatch"
+       return ()
 
 
 {- | Occurs function, to roll your own unification with occurs check.
@@ -268,36 +278,31 @@ match :: (Ord var, Match termF
          ) => Term termF var -> Term termF var -> Maybe(Substitution termF var)
 match t u = execMEnv (matchM t u)
 
-class (Functor termF, Foldable termF) => Match termF where
-  matchStructure :: termF a -> termF a -> Bool
+type Match term = (Applicative (Maybe :+: term), Traversable term)
 
-instance Match [] where matchStructure a b = True
-instance (Functor f, Foldable f, Eq(f ())) => Match f where
-  matchStructure a b = fmap (const ()) a == fmap (const ()) b
+type instance TermF (Maybe :+: m) = TermF m
+type instance Var   (Maybe :+: m) = Var   m
+
+deriving instance (Foldable f, Foldable g) => Foldable (f :+: g)
+deriving instance (Traversable f, Traversable g) => Traversable (f :+: g)
 
 {-# INLINABLE matchM #-}
-matchM :: forall m. (Eq (Var m), Match(TermF m), MonadEnv m) => TermFor m -> TermFor m -> m ()
+matchM :: forall m. (Eq (Var m), Match(TermF m), MonadEnv m
+                    ) => TermFor m -> TermFor m -> m ()
 matchM t s = do
     t' <- find' t
     matchOne t' s
-    where matchOne :: TermFor m -> TermFor m -> m ()
+    where
+          matchOne :: TermFor m -> TermFor m -> m ()
+          matchOne Impure{} Pure{} = fail "match: structure mismatch"
           matchOne (Pure v) (Pure u) | v == u = return ()
           matchOne (Pure v) u = do
               bound_already <- isJust `liftM` lookupVar v
               if bound_already then fail "incompatible" else varBind v u
-          matchOne (Impure t) (Impure u) = zipFoldableM_ matchM t u
-          matchOne Impure{} Pure{} = fail "match: structure mismatch"
-
-{-# INLINABLE zipFoldableM_ #-}
-zipFoldableM_ :: (Match t1, Monad m) => (t -> t -> m a) -> t1 t -> t1 t -> m ()
-zipFoldableM_ f a b
-  | matchStructure a b = go (toList a) (toList b)
-  | otherwise = fail "structure mismatch"
-       where
-          go (a : aa) (b : bb) = f a b >> go aa bb
-          go [] [] = return ()
-          go _ _   = fail "structure mismatch"
-
+          matchOne (Impure t) (Impure u) = do
+            constraints <- T.sequence(matchM <$> Compose(Just t) <*> Compose(Just u))
+            when (not $ isJust $ decompose constraints) $ fail "structure mismatch"
+            return()
 
 
 -- -----------------------------

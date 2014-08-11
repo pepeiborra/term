@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleInstances, OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
 import Control.Applicative
+import Control.Applicative.Compose
 import Control.Monad.Free
 import Data.Bifunctor
 import Data.Char (isAlpha)
@@ -14,6 +16,7 @@ import Text.PrettyPrint.HughesPJClass
 
 import qualified Data.Id.Family as Family
 import Data.Term hiding (TermF)
+import Data.Monoid (Monoid(..))
 
 data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show)
 type Term1 id = Free (TermF id)
@@ -30,8 +33,11 @@ termId :: MonadPlus m => Term1 id a -> m id
 termId = foldFree (const mzero) f where
     f (Term f tt) = return f `mplus` Data.Foldable.msum tt
 
-instance Eq id => Match (TermF id) where
-  matchStructure (Term a _) (Term b _) = a == b
+instance (Eq id) => Applicative (Maybe :+: TermF id) where
+  pure _ = Compose Nothing
+  Compose(Just(Term a ff)) <*> Compose(Just(Term b xx))
+    | a == b = Compose $ Just $ Term a (zipWith ($) ff xx)
+  _ <*> _ = Compose Nothing
 
 -- Specific instance for TermF, only for efficiency
 instance Ord id => Unify (TermF id) where

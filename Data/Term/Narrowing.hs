@@ -84,10 +84,10 @@ contexts t = [ (fmap fromRight t_i, u, [i])
 narrowStepBasic :: (Unify t, Ord v, MonadPlus m, MonadVariant m, MonadEnv m, Var m ~ v, t ~ TermF m) =>
                    [Rule t v] -> Term t v -> m (Term t v, Position)
 narrowStepBasic rr t = go (t, mempty, [])
-    where go (t, ct,pos) = do { t' <- narrowTop t; return (ct |> t', pos)}
+  where go (t, ct,pos) = do { t' <- narrowTop t; return (ct |> t', pos)}
                           `mplus`
                            msum [go (t', ct `mappend` ct', pos ++ i) | (t', ct', i) <- contexts t]
-          narrowTop t = msum$ flip map rr $ \r -> do
+        narrowTop t = msum$ flip map rr $ \r -> do
                           guard (not $ isVar t)
                           lhs :-> rhs <- getFresh r
                           unifyM lhs t

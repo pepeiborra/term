@@ -35,6 +35,7 @@ module Data.Term.Rules
   ) where
 
 import Control.Applicative
+import Control.Applicative.Compose
 import Control.Monad.Free
 import Control.Monad.State (evalState, execStateT, evalStateT)
 import Data.Foldable (Foldable, foldMap, toList)
@@ -67,7 +68,9 @@ instance Foldable RuleF where foldMap f (l :-> r) = f l `mappend` f r
 instance Traversable RuleF where traverse f (l :-> r) = (:->) <$> f l <*> f r
 instance GetFresh a => GetFresh (RuleF a) where getFreshM = getFreshMdefault
 instance GetVars t => GetVars (RuleF t) where getVars = foldMap getVars
-instance Match RuleF where matchStructure a b = True
+instance Applicative RuleF where
+  pure x = x :-> x
+  (fa :-> fb) <*> (a :-> b) = fa a :-> fb b
 instance (Eq v, Unify t) => GetUnifier (Rule t v) where getUnifierM = getUnifierMdefault
 instance (Eq v, Match t) => GetMatcher (Rule t v) where getMatcherM = getMatcherMdefault
 type instance Var (RuleF a) = Var a
@@ -217,7 +220,10 @@ instance (GetUnifier t) => GetUnifier [t] where
 getUnifierMdefault :: (Ord (Var t), GetUnifier t, MonadEnv m, Match f,
                       TermF m ~ TermF t, Var m ~ Var t) =>
                      f t -> f t -> m ()
-getUnifierMdefault = zipFoldableM_ getUnifierM
+getUnifierMdefault t u = do
+  constraints <- T.sequence (getUnifierM <$> Compose(Just t) <*> Compose(Just u))
+  when (not $ isJust $ decompose constraints) $ fail "structure mismatch"
+  return ()
 
 -- ------------
 -- * Matching
@@ -242,7 +248,10 @@ instance (GetMatcher t) => GetMatcher [t] where
 getMatcherMdefault :: (Match f, GetMatcher t, MonadEnv m,
                        TermF t ~ TermF m, Var t ~ Var m) =>
                      f t -> f t -> m ()
-getMatcherMdefault = zipFoldableM_ getMatcherM
+getMatcherMdefault t u = do
+  constraints <- T.sequence(getMatcherM <$> Compose(Just t) <*> Compose(Just u))
+  when (not $ isJust $ decompose constraints) $ fail "structure mismatch"
+  return ()
 
 
 -- ----------------------------
