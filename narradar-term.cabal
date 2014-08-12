@@ -46,7 +46,8 @@ Library
     Data.Term.IOVar,
     Data.Term.Rewriting,
     Data.Term.Narrowing,
-    Data.Term.Ppr
+    Data.Term.Ppr,
+    Data.Term.Automata
 --    Data.Term.Annotated,
 --    Data.Term.Annotated.Ppr,
 --    Data.Term.Annotated.Rules,
