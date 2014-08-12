@@ -59,4 +59,4 @@ Library
     Data.IOStableRef
 
   ghc-options: -Wall -fno-warn-name-shadowing
-  ghc-prof-options: -auto
+  ghc-prof-options: -fprof-auto
