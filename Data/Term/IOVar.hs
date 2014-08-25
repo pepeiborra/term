@@ -25,6 +25,8 @@ import Data.Traversable as T
 import qualified Prelude as P
 import Prelude
 
+import Debug.Hoed.Observe
+
 newtype IOVar termF = IOVar (IOStableRef( Maybe (Free termF (IOVar termF)))) deriving (Eq,Ord, Show)
 
 
@@ -40,7 +42,7 @@ instantiate t = (liftM.fmap) (\(Right x) -> x)
                              (freshWith (flip const)
                                         (fmap Left t))
 
-getInst :: (Traversable t, Ord var,  Eq (Free t (IOVar t))) =>
+getInst :: (Traversable t, Ord var, Observable var, Eq (Free t (IOVar t))) =>
            Substitution t (Either var (IOVar t)) -> TIO t (Substitution t var)
 getInst (unSubst -> s) = do
     map0' <- P.mapM (secondM (zonkM (\v -> let Just v' = lookup (Pure v) inversemap in return v'))) map0
@@ -73,3 +75,5 @@ type instance Var (IOVar t) = IOVar t
 instance GetVars (IOVar t) where
   getVars = Set.singleton
   fromVar = id
+
+instance Observable (IOVar a) where observer = observeOpaque "IOVar"

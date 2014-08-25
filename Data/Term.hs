@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 
 module Data.Term (
 -- * Type Families
@@ -36,3 +37,6 @@ import Control.Monad.Variant
 import Data.Term.Base
 import Data.Term.Family
 import Data.Term.Substitutions
+import Prelude.Extras
+
+type instance Id (Lift1 f) = Id f

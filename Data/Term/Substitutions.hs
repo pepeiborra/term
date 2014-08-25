@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -9,6 +11,11 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE DeriveFoldable, DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GADTs #-}
 
 module Data.Term.Substitutions where
 
@@ -42,6 +49,10 @@ import qualified Data.Traversable as T
 import Data.Var.Family
 import Data.Foldable (foldMap)
 import Prelude hiding (mapM)
+import Prelude.Extras
+
+import Debug.Hoed.Observe
+
 -- ---------------
 -- * Variables
 -- ---------------
@@ -71,11 +82,12 @@ instance GetFresh t => GetFresh [t] where getFreshM = getFreshMdefault
 getFreshMdefault :: (Traversable t, GetFresh a, MonadVariant m, MonadEnv m, Var a ~ Var m, term ~ TermF a, term ~ TermF m, Traversable term) => t a -> m (t a)
 getFreshMdefault = T.mapM getFreshM
 
-getFresh :: (MonadVariant m, Ord (Var m), GetFresh thing, Traversable (TermF thing), Var thing ~ Var m) =>
+getFresh :: (MonadVariant m, Observable (Var m), Ord (Var m), GetFresh thing, Traversable (TermF thing), Var thing ~ Var m) =>
             thing -> m thing
 getFresh t = evalMEnv (getFreshM t)
 
-getVariant :: (v ~ Var t, v ~ Var t', Ord v, Enum v, Rename v, GetFresh t, GetVars t', Traversable (TermF t)) => t -> t' -> t
+getVariant :: ( v ~ Var t, v ~ Var t'
+              , Ord v, Observable v, Enum v, Rename v, GetFresh t, GetVars t', Traversable (TermF t)) => t -> t' -> t
 getVariant u t = runVariant' ([toEnum 0..] \\ Set.toList (getVars t)) (getFresh u)
 
 
@@ -83,10 +95,13 @@ getVariant u t = runVariant' ([toEnum 0..] \\ Set.toList (getVars t)) (getFresh 
 -- * Substitutions
 -- ---------------
 
-newtype Substitution_ a = Subst {unSubst::Map (Var a) a}
+data Substitution_ a where
+  Subst :: Observable(Var a) => {unSubst::Map (Var a) a} -> Substitution_ a
+
 type Substitution t v = Substitution_(Term t v)
 type SubstitutionFor t = Substitution (TermF t) (Var t)
 
+subst :: Observable(Var a) => Map (Var a) a -> Substitution_ a
 subst = Subst
 
 mapSubst f = liftSubst (fmap f)
@@ -97,10 +112,10 @@ deriving instance (Eq a,   Eq (Var a))   => Eq (Substitution_ a)
 deriving instance (Ord a,  Ord (Var a))  => Ord (Substitution_ a)
 deriving instance (Show a, Show (Var a)) => Show (Substitution_ a)
 
-emptySubst :: (Ord(Var a)) => Substitution_ a
+emptySubst :: (Observable(Var a), Ord(Var a)) => Substitution_ a
 emptySubst = subst mempty
 
-liftSubst :: () =>
+liftSubst :: (Observable(Var a), Observable(Var b)) =>
              (Map (Var a) a -> Map (Var b) b) ->
              Substitution_ a -> Substitution_ b
 liftSubst f (unSubst -> e) = subst (f e)
@@ -123,7 +138,7 @@ domain = Map.keysSet . unSubst
 codomain :: () => Substitution_ t -> [t]
 codomain = Map.elems . unSubst
 
-restrictTo :: (Ord(Var t)
+restrictTo :: (Ord(Var t), Observable(Var t)
               ) => [Var t] -> Substitution_ t -> Substitution_ t
 restrictTo vv = liftSubst f where
   f e = Map.intersectionWith const e (Map.fromDistinctAscList (zip vv (repeat undefined)))
@@ -131,7 +146,7 @@ restrictTo vv = liftSubst f where
 isEmpty :: (Ord(Var t)) => Substitution_ t -> Bool
 isEmpty (unSubst -> m) = Map.null m
 
-fromListSubst :: (Ord (Var term)
+fromListSubst :: (Ord (Var term), Observable(Var term)
                  ) => [(Var term,term)] -> Substitution_ term
 fromListSubst = subst . Map.fromList
 
@@ -150,7 +165,7 @@ zonkTermM fv = liftM join . mapM f where
               Nothing -> Pure `liftM` fv v
               Just t  -> zonkTermM fv t
 
-zonkSubst :: (v ~ Var(t v),  Ord v, Monad t
+zonkSubst :: (v ~ Var(t v),  Ord v, Monad t, Observable v
              ) => Substitution_ (t v) -> Substitution_ (t v)
 zonkSubst s = liftSubst (Map.map (zonkTerm s id)) s
 
@@ -169,6 +184,12 @@ isRenaming (unSubst -> subst) = all isVar (Map.elems subst) && isBijective (Map.
        where
           elemsSet = Set.fromList(Map.elems rel)
 
+instance Observable1 Substitution_ where
+  observer1 (Subst s) = send "Subst" (return Subst << s)
+
+instance (Observable k) => Observable1 (Map k) where
+  observer1 x p = Map.fromDistinctAscList $ observer1 (Map.toList x) p
+
 -- --------------------------------------
 -- ** Environments: handling substitutions
 -- --------------------------------------
@@ -179,7 +200,7 @@ newtype MEnvT t (v :: *) (m :: * -> *) a = MEnv {unMEnv ::StateT (Substitution_ 
 type instance Var   (MEnvT t v m) = v
 type instance TermF (MEnvT t v m) = t
 
-instance (Monad m, Foldable t, Functor t, Ord v) => MonadEnv (MEnvT t v m) where
+instance (Monad m, Foldable t, Functor t, Ord v, Observable v) => MonadEnv (MEnvT t v m) where
   varBind v t = do {e <- MEnv get; MEnv $ put (liftSubst (Map.insert v t) e)}
   lookupVar t  = MEnv get >>= \s -> return(lookupSubst t s)
 
@@ -198,15 +219,21 @@ instance (Functor (TermF m), MonadEnv m) => MonadEnv (LogicT m) where
   lookupVar = lift . lookupVar
 #endif
 
-execMEnv :: (Foldable t, Functor t, Ord v, Monad m) => MEnvT t v m a -> m (Substitution t v)
-evalMEnv :: (Foldable t, Functor t, Ord v, Monad m) => MEnvT t v m a -> m a
-runMEnv  :: (Foldable t, Functor t, Ord v, Monad m) => MEnvT t v m a -> m (a, Substitution t v)
+execMEnv :: (Foldable t, Functor t, Ord v, Observable v, Monad m) => MEnvT t v m a -> m (Substitution t v)
+evalMEnv :: (Foldable t, Functor t, Ord v, Observable v, Monad m) => MEnvT t v m a -> m a
+runMEnv  :: (Foldable t, Functor t, Ord v, Observable v, Monad m) => MEnvT t v m a -> m (a, Substitution t v)
 
 execMEnv = (`execStateT` subst mempty) . unMEnv
 
 evalMEnv = (`evalStateT` subst mempty) . unMEnv
 
 runMEnv  = (`runStateT` subst mempty) . unMEnv
+
+
+instance Monad m => Observable1 (MEnvT t v m) where
+  observer1 comp p = do
+    res <- comp
+    send "<MEnvT>" (return return << res) p
 
 -- instance (Monad m, Functor t, Ord v) => MonadEnv (StateT (Substitution t v, a) m) where
 --   type TermF (StateT (Substitution t v, a) m) = t
@@ -217,12 +244,12 @@ runMEnv  = (`runStateT` subst mempty) . unMEnv
 -- ------------------------------------
 -- * Unification (without occurs check)
 -- ------------------------------------
-unifies :: forall termF var. (Unify termF, Ord var) => Term termF var -> Term termF var -> Bool
+unifies :: forall termF var. (Unify termF, Ord var, Observable var) => Term termF var -> Term termF var -> Bool
 unifies t u = isJust (unify t u)
 
-unify t u = fmap zonkSubst (execMEnv (unifyM t u))
+unify :: (Unify termF, Ord var, Observable var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
 
-unify :: (Unify termF, Ord var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
+unify t u = fmap zonkSubst (execMEnv (unifyM t u))
 
 class (Traversable termF, Match termF) => Unify termF
   where unifyM :: (MonadEnv m, Ord (Var m), TermF m ~ termF) => Term termF (Var m) -> Term termF (Var m) -> m ()
@@ -270,15 +297,15 @@ occursIn v t = do
 -- * Matching
 -- ----------
 {-# INLINABLE matches #-}
-matches :: forall termF var. (Ord var, Match termF) => Term termF var -> Term termF var -> Bool
+matches :: forall termF var. (Ord var, Observable var, Match termF) => Term termF var -> Term termF var -> Bool
 matches t u = isJust (match t u)
 
 {-# INLINABLE match #-}
-match :: (Ord var, Match termF
+match :: (Ord var, Match termF, Observable var
          ) => Term termF var -> Term termF var -> Maybe(Substitution termF var)
 match t u = execMEnv (matchM t u)
 
-type Match term = (Applicative (Maybe :+: term), Traversable term)
+type Match term = (Applicative (Maybe :+: term), Traversable term, Eq1 term)
 
 type instance TermF (Maybe :+: m) = TermF m
 type instance Var   (Maybe :+: m) = Var   m
@@ -290,15 +317,15 @@ deriving instance (Traversable f, Traversable g) => Traversable (f :+: g)
 matchM :: forall m. (Eq (Var m), Match(TermF m), MonadEnv m
                     ) => TermFor m -> TermFor m -> m ()
 matchM t s = do
-    t' <- find' t
-    matchOne t' s
+    matchOne t s
     where
           matchOne :: TermFor m -> TermFor m -> m ()
           matchOne Impure{} Pure{} = fail "match: structure mismatch"
-          matchOne (Pure v) (Pure u) | v == u = return ()
           matchOne (Pure v) u = do
-              bound_already <- isJust `liftM` lookupVar v
-              if bound_already then fail "incompatible" else varBind v u
+              contents <- lookupVar v
+              case contents of
+                Just v' -> when (v' /= u) $ fail "incompatible"
+                Nothing -> varBind v u
           matchOne (Impure t) (Impure u) = do
             constraints <- T.sequence(matchM <$> Compose(Just t) <*> Compose(Just u))
             when (not $ isJust $ decompose constraints) $ fail "structure mismatch"
@@ -310,18 +337,18 @@ matchM t s = do
 -- -----------------------------
 {-# INLINABLE equiv #-}
 equiv :: forall termF var.
-         (Ord var, Rename var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
+         (Ord var, Observable var, Rename var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
 equiv t u = t == u || maybe False isRenaming (match (variant t u) u)
 
 {-# INLINABLE equiv2 #-}
-equiv2 :: (Rename var, Ord var, Enum var, Unify termF) => Term termF var -> Term termF var -> Bool
+equiv2 :: (Rename var, Ord var, Observable var, Enum var, Unify termF) => Term termF var -> Term termF var -> Bool
 equiv2 t u = let t' = variant t u in matches t' u && matches u t'
 
 newtype EqModulo a = EqModulo {eqModulo::a}
-instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
+instance (Ord v, Observable v, Rename v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Term t v)) where
     EqModulo t1 == EqModulo t2 = t1 `equiv2` t2
 
-instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Ord (EqModulo (Term t v)) where
+instance (Ord v, Observable v, Rename v, Enum v, Unify t, Ord (Term t v)) => Ord (EqModulo (Term t v)) where
     t1 `compare` t2 = if t1 == t2 then EQ else compare (eqModulo t1) (eqModulo t2)
 
 -- --------------------------------
@@ -348,7 +375,7 @@ freshWith fv = go where
             Nothing -> do {v' <- fv v `liftM` freshVar; varBind v (return v'); return (return v')}
             Just (Pure v') -> return (Pure v')
 
-freshWith' :: (Rename var, Ord var', Ord var, var' ~ Var m, Traversable t, MonadVariant m) =>
+freshWith' :: (Rename var, Observable var, Observable var', Ord var', Ord var, var' ~ Var m, Traversable t, MonadVariant m) =>
                (var -> var' -> var') -> Term t var -> m (Term t var')
 freshWith' fv t = variantsWith Right $ evalMEnv $
                   (liftM.fmap) (\(Right x) -> x)
@@ -357,6 +384,6 @@ freshWith' fv t = variantsWith Right $ evalMEnv $
   fv' (Left v) (Right v') = Right (fv v v')
 
 
-variant :: forall v t t'. (Ord v, Rename v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
+variant :: forall v t t'. (Ord v, Observable v, Rename v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
 variant u t = runVariant' ([toEnum 0..] \\ vars t) (evalMEnv(fresh u))
 

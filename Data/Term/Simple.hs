@@ -1,25 +1,35 @@
 {-# LANGUAGE FlexibleInstances, OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
 import Control.Applicative
 import Control.Applicative.Compose
+import Control.DeepSeq
+import Control.DeepSeq.Extras
 import Control.Monad.Free
 import Data.Bifunctor
 import Data.Char (isAlpha)
 import Data.Foldable (Foldable(..), msum)
 import Data.Term.Substitutions
 import Data.Traversable
+import Prelude.Extras
 import Text.PrettyPrint.HughesPJClass
 
 import qualified Data.Id.Family as Family
 import Data.Term hiding (TermF)
 import Data.Monoid (Monoid(..))
 
-data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show)
+import Debug.Hoed.Observe
+
+data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show,Generic)
 type Term1 id = Free (TermF id)
+
+instance Eq id => Eq1 (TermF id) where (==#) = (==)
+instance Ord id => Ord1 (TermF id) where compare1 = compare
+instance Show id => Show1 (TermF id) where showsPrec1 = showsPrec
 
 type instance Family.Id (TermF id) = id
 
@@ -83,3 +93,7 @@ instance Traversable (TermF id) where
 instance Bifunctor TermF where
     bimap f g (Term id tt) = Term (f id) (fmap g tt)
 
+instance Observable id => Observable1 (TermF id)
+
+instance NFData id => NFData1 (TermF id) where
+  rnf1 (Term id tt) = rnf id `seq` rnf tt

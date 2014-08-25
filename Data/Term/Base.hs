@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, TypeSynonymInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Rank2Types, PolyKinds #-}
 {-# LANGUAGE TupleSections #-}
@@ -35,6 +36,8 @@ import Data.Term.Utils
 import Prelude as P hiding (mapM,(.),id)
 import Control.Monad.State (runStateT)
 import Control.Monad.State (put)
+
+import Debug.Hoed.Observe
 
 -- --------
 -- * Terms

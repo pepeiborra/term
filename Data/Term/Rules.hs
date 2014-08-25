@@ -50,6 +50,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Term.Substitutions
 import Control.Monad.Variant
+import Prelude.Extras
 
 import Data.Term hiding (Rule)
 import qualified Data.Term.Var as Var
@@ -58,11 +59,14 @@ import Data.Term.IOVar
 import qualified Data.Id.Family as Family
 import qualified Data.Rule.Family as Family
 
+import Debug.Hoed.Observe
+
 -- ----------------
 -- * Concrete rules
 -- ----------------
 infix 1 :->
 data RuleF a = (:->) {lhs,rhs::a} deriving (Eq, Ord, Show)
+instance Eq1 RuleF where (==#) = (==)
 instance Functor RuleF where fmap f (l :-> r) = f l :-> f r
 instance Foldable RuleF where foldMap f (l :-> r) = f l `mappend` f r
 instance Traversable RuleF where traverse f (l :-> r) = (:->) <$> f l <*> f r
@@ -200,11 +204,11 @@ collectIds = catMaybes . foldTerm (const [Nothing]) (\t -> getId1 t : concat (to
 -- * Unification
 -- -------------
 
-getUnifier :: (GetUnifier t, Ord (Var t), Functor(TermF t), Foldable(TermF t)
+getUnifier :: (GetUnifier t, Observable (Var t), Ord (Var t), Functor(TermF t), Foldable(TermF t)
               ) => t -> t -> Maybe (SubstitutionFor t)
 getUnifier t u = fmap zonkSubst $ execMEnv  (getUnifierM t u)
 
-unifies' :: (Ord (Var t), GetUnifier t, Functor(TermF t), Foldable(TermF t)
+unifies' :: (Observable(Var t), Ord (Var t), GetUnifier t, Functor(TermF t), Foldable(TermF t)
             ) => t -> t -> Bool
 unifies' s t = isJust (getUnifier s t)
 
@@ -229,11 +233,11 @@ getUnifierMdefault t u = do
 -- * Matching
 -- ------------
 
-getMatcher :: (GetMatcher t, Ord (Var t), Functor (TermF t), Foldable(TermF t)
+getMatcher :: (GetMatcher t, Observable (Var t), Ord (Var t), Functor (TermF t), Foldable(TermF t)
               ) => t -> t -> Maybe (SubstitutionFor t)
 getMatcher t u = execMEnv (getMatcherM t u)
 
-matches' :: (Ord (Var t), GetMatcher t, Functor (TermF t), Foldable(TermF t)
+matches' :: (Observable (Var t), Ord (Var t), GetMatcher t, Functor (TermF t), Foldable(TermF t)
             ) => t -> t -> Bool
 matches' s t = isJust (getMatcher s t)
 
@@ -258,20 +262,26 @@ getMatcherMdefault t u = do
 -- * Equivalence up to renaming
 -- ----------------------------
 --instance (Ord v, Enum v, Ord (Term t v), GetUnifier t v thing, GetVars v thing, GetFresh t v thing) =>
-instance (v ~ Var thing, Enum v, Rename v, Ord v,
+instance (v ~ Var thing, Enum v, Rename v, Ord v, Observable v,
           Traversable (TermF thing),
           GetMatcher thing, GetVars thing, GetFresh thing) =>
          Eq (EqModulo thing) where
            EqModulo t1 == EqModulo t2 = t1 `equiv2'` t2
 
-equiv' :: (var ~ Var t, Ord var, Enum var, Rename var,
+equiv' :: (var ~ Var t, Ord var, Enum var, Rename var, Observable var,
           Traversable (TermF t), Ord (TermFor t),
           GetMatcher t, GetVars t, GetFresh t) => t -> t -> Bool
 equiv' t u = maybe False isRenaming (getMatcher (getVariant t u) u)
 equiv2' t u = let t' = getVariant t u in matches' t' u && matches' u t'
 
-instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Eq (EqModulo (Rule t v)) where
+instance (Ord v, Rename v, Enum v, Observable v, Unify t, Ord (Term t v)) => Eq (EqModulo (Rule t v)) where
     EqModulo t1 == EqModulo t2 = t1 `equiv'` t2
 
-instance (Ord v, Rename v, Enum v, Unify t, Ord (Term t v)) => Ord (EqModulo (Rule t v)) where
+instance (Ord v, Rename v, Enum v, Observable v, Unify t, Ord (Term t v)) => Ord (EqModulo (Rule t v)) where
     t1 `compare` t2 = if t1 == t2 then EQ else compare (eqModulo t1) (eqModulo t2)
+
+
+-- ------------------
+-- * Other instances
+-- ------------------
+instance Observable1 RuleF where observer1 (l :-> r) = send "(:->)" (return (:->) << l << r)
