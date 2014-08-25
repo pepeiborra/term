@@ -36,6 +36,8 @@ module Data.Term.Rules
 
 import Control.Applicative
 import Control.Applicative.Compose
+import Control.DeepSeq
+import Control.DeepSeq.Extras
 import Control.Monad.Free
 import Control.Monad.State (evalState, execStateT, evalStateT)
 import Data.Foldable (Foldable, foldMap, toList)
@@ -80,6 +82,10 @@ instance (Eq v, Match t) => GetMatcher (Rule t v) where getMatcherM = getMatcher
 type instance Var (RuleF a) = Var a
 type instance TermF (RuleF a) = TermF a
 type instance Id (RuleF a) = Id a
+
+instance NFData1 RuleF where
+  rnf1 (a :-> b) = rnf a `seq` rnf b `seq` ()
+instance NFData a => NFData (RuleF a) where rnf = rnf1
 
 type Rule t v = RuleF (Term t v)
 type RuleFor (t :: k)  = Rule (TermF t) (Var t)
@@ -129,6 +135,11 @@ instance Ord id => Monoid (Signature id) where
 
 instance Ord id => HasSignature (Signature id) where
     getSignature = id
+
+instance NFData1 Signature where
+  rnf1 (Sig cc dd) = rnf cc `seq` rnf dd `seq` ()
+
+instance NFData a => NFData (Signature a) where rnf = rnf1
 
 class Ord (Family.Id l) => HasSignature l where
   getSignature :: l -> Signature (Family.Id l)

@@ -21,6 +21,7 @@ module Data.Term.Substitutions where
 
 import Control.Applicative
 import Control.Applicative.Compose
+import Control.DeepSeq
 import Control.Monad (MonadPlus, join, when)
 import Control.Monad (liftM)
 import Control.Monad.Cont (MonadTrans, lift)
@@ -111,6 +112,9 @@ s1 `appendSubst` s2 =  liftSubst2 Map.union (applySubst s2 `mapSubst` s1) s2
 deriving instance (Eq a,   Eq (Var a))   => Eq (Substitution_ a)
 deriving instance (Ord a,  Ord (Var a))  => Ord (Substitution_ a)
 deriving instance (Show a, Show (Var a)) => Show (Substitution_ a)
+
+instance (NFData a, NFData(Family.Var a)) => NFData (Substitution_ a) where
+  rnf = rnf . unSubst
 
 emptySubst :: (Observable(Var a), Ord(Var a)) => Substitution_ a
 emptySubst = subst mempty
