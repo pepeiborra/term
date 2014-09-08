@@ -19,7 +19,7 @@ Flag logict
 
 Library
   buildable: True
-  build-depends: base > 4, containers, mtl > 2, prettyclass, control-monad-free > 0.5, control-monad-free-extras, bifunctors, applicative-extras, prelude-extras, deepseq, deepseq-extras, Hoed, hoed-transformers
+  build-depends: base > 4, containers, mtl > 2, prettyclass, control-monad-free > 0.5, control-monad-free-extras, bifunctors, applicative-extras, prelude-extras, deepseq, deepseq-extras, Hoed, hoed-extras
 
   if flag(logict)
      build-depends: logict

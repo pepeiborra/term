@@ -24,7 +24,7 @@ import Data.Monoid (Monoid(..))
 
 import Debug.Hoed.Observe
 
-data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show,Generic)
+data TermF id f = Term {id::id, args::[f]} deriving (Eq,Ord,Show,Generic,Generic1)
 type Term1 id = Free (TermF id)
 
 instance Eq id => Eq1 (TermF id) where (==#) = (==)

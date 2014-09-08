@@ -166,17 +166,17 @@ narrows' rr = liftM (second zonkSubst) . run(closureMP(narrowStepBasic rr >=> zo
 -- * Narrowing under Strategies
 -- ---------------------------
 -- | Note that this function does not assume that the rules and the term have been renamed apart
-qNarrow1P :: ( Ord v, Observable v, Enum v, Rename v, Unify t, MonadPlus m, Observable (Term t v)
+qNarrow1P :: ( Ord v, Observable v, Enum v, Rename v, Unify t, MonadPlus m, Observable1 t
              ) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
 qNarrow1P q rr t = second(restrictTo (vars t)) `liftM` qNarrow1P' q rr t
 -- | Note that this function does not assume that the rules and the term have been renamed apart
-qNarrow1P' :: ( Ord v, Observable v, Enum v, Rename v, Unify t, MonadPlus m, Observable(Term t v)
+qNarrow1P' :: ( Ord v, Observable v, Enum v, Rename v, Unify t, MonadPlus m, Observable1 t
               ) => [Term t v] -> [Rule t v] -> Term t v -> m ((Term t v, Position), Substitution t v)
 qNarrow1P' q rr = liftM(second zonkSubst) . run (qNarrowStepBasic q rr >=> firstM(zonkM return))
 
 {-# INLINE qNarrowStepBasic #-}
 -- Note that this function does not assume that the rules and the term have been renamed apart
-qNarrowStepBasic :: (Unify t, Enum v, Ord v, Observable v, Observable (Term t v), MonadPlus m, MonadVariant m, MonadEnv m, Var m ~ v, t ~ TermF m) =>
+qNarrowStepBasic :: (Unify t, Enum v, Ord v, Observable v, Observable1 t, MonadPlus m, MonadVariant m, MonadEnv m, Var m ~ v, t ~ TermF m) =>
                    [Term t v] -> [Rule t v] -> Term t v -> m (Term t v, Position)
 qNarrowStepBasic q rr t = go (t, mempty, [])
     where go (t, ct,pos) = do { t' <- narrowTop t;

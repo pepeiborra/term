@@ -53,6 +53,7 @@ import Prelude hiding (mapM)
 import Prelude.Extras
 
 import Debug.Hoed.Observe
+import Debug.Hoed.Observe.Instances
 
 -- ---------------
 -- * Variables
@@ -113,7 +114,7 @@ deriving instance (Eq a,   Eq (Var a))   => Eq (Substitution_ a)
 deriving instance (Ord a,  Ord (Var a))  => Ord (Substitution_ a)
 deriving instance (Show a, Show (Var a)) => Show (Substitution_ a)
 
-instance (NFData a, NFData(Family.Var a)) => NFData (Substitution_ a) where
+instance (NFData a, NFData(Var a)) => NFData (Substitution_ a) where
   rnf = rnf . unSubst
 
 emptySubst :: (Observable(Var a), Ord(Var a)) => Substitution_ a
@@ -191,8 +192,9 @@ isRenaming (unSubst -> subst) = all isVar (Map.elems subst) && isBijective (Map.
 instance Observable1 Substitution_ where
   observer1 (Subst s) = send "Subst" (return Subst << s)
 
-instance (Observable k) => Observable1 (Map k) where
-  observer1 x p = Map.fromDistinctAscList $ observer1 (Map.toList x) p
+instance Observable a => Observable (Substitution_ a) where
+  observer = observer1
+  observers = observers1
 
 -- --------------------------------------
 -- ** Environments: handling substitutions
@@ -239,6 +241,10 @@ instance Monad m => Observable1 (MEnvT t v m) where
     res <- comp
     send "<MEnvT>" (return return << res) p
 
+instance (Observable a, Monad m) => Observable (MEnvT t v m a) where
+  observer = observer1
+  observers = observers1
+  
 -- instance (Monad m, Functor t, Ord v) => MonadEnv (StateT (Substitution t v, a) m) where
 --   type TermF (StateT (Substitution t v, a) m) = t
 --   type Var   (StateT (Substitution t v, a) m) = v

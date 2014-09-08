@@ -296,3 +296,6 @@ instance (Ord v, Rename v, Enum v, Observable v, Unify t, Ord (Term t v)) => Ord
 -- * Other instances
 -- ------------------
 instance Observable1 RuleF where observer1 (l :-> r) = send "(:->)" (return (:->) << l << r)
+instance Observable a => Observable (RuleF a) where
+  observers = observers1
+  observer  = observer1

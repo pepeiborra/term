@@ -25,6 +25,9 @@ import Data.Monoid
 
 import Data.Term.Family
 import Data.Var.Family
+
+import Debug.Hoed.Observe
+
 -- type Var m
 
 -- | Renaming of variables
@@ -74,6 +77,17 @@ runVariant' vars = runIdentity . runVariantT' vars
 
 runVariant :: Enum v => MVariant v a -> a
 runVariant = runVariant' [toEnum 0..]
+
+instance (Monad m) => Observable1 (MVariantT v m) where
+  observer1 = observeComp "<MvariantT>"
+
+instance (Observable a, Monad m) => Observable(MVariantT v m a) where
+  observer = observer1
+  observers = observers1
+
+observeComp name comp p = do
+    res <- comp
+    send name (return return << res) p
 
 -- * A rebranding function
 
