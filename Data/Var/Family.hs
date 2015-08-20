@@ -6,6 +6,7 @@ import Data.Map (Map)
 
 type family Var  (t :: k)
 
+type instance Var (Maybe a) = Var a
 type instance Var  [t] = Var t
 type instance Var (Set t) = Var t
 type instance Var (Map k t) = Var t
