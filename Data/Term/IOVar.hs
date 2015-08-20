@@ -13,8 +13,8 @@ import Control.Monad.Env
 import Control.Monad.Trans
 import Control.Monad.Free
 import Control.Monad.Variant
-import qualified Control.Monad.Variant as MonadVariant
-import Data.Foldable(Foldable)
+
+
 import Data.IOStableRef
 import qualified Data.Map as Map
 import qualified Data.Set as Set

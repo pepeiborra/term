@@ -3,21 +3,18 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Monad.Env where
 
-import Control.Monad.List (ListT)
-import Control.Monad.Logic (LogicT, LogicT, MonadLogic, msplit)
-import Control.Monad.RWS (RWST)
-import Control.Monad.Reader (ReaderT)
-import Control.Monad.State (StateT)
-import Control.Monad.Writer (WriterT)
+import           Control.Monad.List (ListT)
+import           Control.Monad.RWS (RWST)
+import           Control.Monad.Reader (ReaderT)
+import           Control.Monad.State (StateT)
+import           Control.Monad.Writer (WriterT)
 
-import Control.Monad.Free
-import Control.Monad.Logic
-import Control.Monad.Variant
+import           Control.Monad.Free
+import           Control.Monad.Trans
+import           Control.Monad.Variant
 
-import Data.Monoid
-import Data.Term.Base
-import Data.Term.Family
-import Data.Traversable (Traversable)
+import           Data.Term.Base
+import           Data.Term.Family
 import qualified Data.Traversable as T
 
 -- | Instances need only to define 'varBind' and 'lookupVar'

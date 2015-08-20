@@ -12,14 +12,14 @@ module Data.Term.Rewriting (
       rewrites, rewritesO, reduce
  ) where
 
-import Control.Applicative
+
 #ifdef LOGICT
 import Control.Monad.Logic
 #endif
-import Control.Monad.State
+
 import Data.List
 import Data.Foldable as F
-import Data.Traversable (Traversable)
+
 
 import Control.Monad.Free.Extras()
 import Control.Monad.Variant

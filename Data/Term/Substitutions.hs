@@ -26,16 +26,11 @@ import Control.Monad (MonadPlus, join, when)
 import Control.Monad (liftM)
 import Control.Monad.Cont (MonadTrans, lift)
 import Control.Monad.Env
-import Control.Monad.Free (Free(..), wrap)
-import Control.Monad.List (ListT)
+import Control.Monad.Free (Free(..))
 import Control.Monad.Logic (LogicT, LogicT, MonadLogic, msplit)
-import Control.Monad.RWS (RWST)
-import Control.Monad.Reader (ReaderT)
 import Control.Monad.State (StateT, get, put, evalStateT, execStateT, runStateT)
 import Control.Monad.Variant
-import Control.Monad.Writer (WriterT)
-import Data.Foldable (Foldable, toList)
-import Data.Id.Family
+import Data.Foldable (toList)
 import Data.List ((\\))
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -45,10 +40,8 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Term.Base
 import Data.Term.Family
-import Data.Traversable (Traversable, mapM)
+import Data.Traversable (mapM)
 import qualified Data.Traversable as T
-import Data.Var.Family
-import Data.Foldable (foldMap)
 import Prelude hiding (mapM)
 import Prelude.Extras
 
@@ -58,7 +51,7 @@ import Debug.Hoed.Observe.Instances
 -- ---------------
 -- * Variables
 -- ---------------
-import Data.Maybe (fromMaybe)
+
 
 class GetVars t where
   getVars :: Ord (Var t) => t -> Set (Var t)
@@ -201,7 +194,7 @@ instance Observable a => Observable (Substitution_ a) where
 -- --------------------------------------
 
 newtype MEnvT t (v :: *) (m :: * -> *) a = MEnv {unMEnv ::StateT (Substitution_ (Term t v)) m a}
-                                           deriving (Functor, Monad, MonadPlus, MonadTrans)
+                                           deriving (Functor, Applicative, Alternative, Monad, MonadPlus, MonadTrans)
 
 type instance Var   (MEnvT t v m) = v
 type instance TermF (MEnvT t v m) = t

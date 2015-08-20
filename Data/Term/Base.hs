@@ -17,7 +17,6 @@ import Control.Monad (liftM, MonadPlus(..))
 import Control.Monad.Free (Free(..), foldFree, foldFreeM, mapFree, mapFreeM, evalFree, isPure)
 import Control.Monad.Identity (runIdentity)
 import Control.Monad.Trans (MonadTrans(..))
-import Control.Monad.Variant
 
 #ifdef LOGICT
 import Control.Monad.Logic (MonadLogic(msplit), LogicT)
@@ -37,7 +36,6 @@ import Prelude as P hiding (mapM,(.),id)
 import Control.Monad.State (runStateT)
 import Control.Monad.State (put)
 
-import Debug.Hoed.Observe
 
 -- --------
 -- * Terms

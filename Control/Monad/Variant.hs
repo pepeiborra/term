@@ -21,10 +21,8 @@ import Control.Monad.Logic
 import Control.Monad.State
 import Control.Monad.RWS
 import Control.Monad.Writer
-import Data.Monoid
 
 import Data.Term.Family
-import Data.Var.Family
 
 import Debug.Hoed.Observe
 
@@ -47,7 +45,7 @@ class (Rename (Var m), Monad m) => MonadVariant m where
     renaming v = do {v' <- freshVar; return $ rename v v'}
 
 -- * A Monad
-newtype MVariantT v m a = MVariant {unMVariant :: StateT [v] m a} deriving (Applicative, Functor, Monad, MonadTrans, MonadPlus)
+newtype MVariantT v m a = MVariant {unMVariant :: StateT [v] m a} deriving (Applicative, Alternative, Functor, Monad, MonadTrans, MonadPlus)
 type MVariant v a = MVariantT v Identity a
 
 type instance Var (MVariantT v m) = v
@@ -92,6 +90,13 @@ observeComp name comp p = do
 -- * A rebranding function
 
 newtype WrappedMVariant v v' m a = WrappedMVariant {unwrapMVariant :: (v -> v') -> m a}
+
+instance Monad m => Functor(WrappedMVariant v v' m) where
+  fmap = liftM
+
+instance Monad m => Applicative(WrappedMVariant v v' m) where
+  pure = return
+  (<*>) = ap
 
 instance Monad m => Monad(WrappedMVariant v v' m) where
   return x = WrappedMVariant (\_ -> return x)

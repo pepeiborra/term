@@ -34,17 +34,17 @@ module Data.Term.Rules
    GetFresh(..), getFresh, getVariant, getFreshMdefault
   ) where
 
-import Control.Applicative
+
 import Control.Applicative.Compose
 import Control.DeepSeq
 import Control.DeepSeq.Extras
 import Control.Monad.Free
-import Control.Monad.State (evalState, execStateT, evalStateT)
+
 import Data.Foldable (Foldable, foldMap, toList)
-import Data.List ((\\))
+
 import Data.Maybe
-import Data.Monoid
-import Data.Traversable (Traversable)
+
+
 import qualified Data.Traversable as T
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -55,8 +55,8 @@ import Control.Monad.Variant
 import Prelude.Extras
 
 import Data.Term hiding (Rule)
-import qualified Data.Term.Var as Var
-import Data.Term.IOVar
+
+
 
 import qualified Data.Id.Family as Family
 import qualified Data.Rule.Family as Family

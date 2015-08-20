@@ -5,7 +5,7 @@ module Data.Term.Var where
 import Control.Monad.Free
 import Control.Monad.Variant (Rename(..))
 import Control.DeepSeq
-import Data.Term.Base
+
 import Data.Term.Substitutions
 import qualified Data.Var.Family as Family
 import qualified Data.Set as Set

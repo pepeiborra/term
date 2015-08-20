@@ -22,15 +22,16 @@ module Data.Term.Narrowing (
   narrowStepBasic
 ) where
 
+import Control.Applicative
 import Control.Arrow
 #ifdef LOGICT
 import Control.Monad.Logic
 #endif
-import Control.Monad.State
+
 import Control.Monad.Variant
-import Data.Foldable (Foldable)
-import Data.Monoid
-import Data.Traversable (Traversable)
+
+
+
 
 import Data.Term
 import Data.Term.Rewriting
@@ -44,7 +45,7 @@ import Text.PrettyPrint.HughesPJClass
 
 -- | Rigid Normal Form
 isRNF :: (Ord v, Observable v, Enum v, Rename v, Unify t) => [Rule t v] -> Term t v -> Bool
-isRNF rr = null . narrow1 rr
+isRNF rr x = case narrow1 rr x of [] -> True ; _ -> False
 
 -- -----------
 -- * Contexts
@@ -96,7 +97,8 @@ narrowStepBasic rr t = go (t, mempty, [])
                           return rhs
 
 -- | one step
-narrow1 :: (Ord v, Observable v, Enum v, Rename v, Unify t, MonadPlus m) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
+narrow1 :: (Ord v, Observable v, Enum v, Rename v, Unify t, MonadPlus m
+           ) => [Rule t v] -> Term t v -> m (Term t v, Substitution t v)
 narrow1 rr t = second (restrictTo (vars t)) `liftM` narrow1' rr t
 
 -- | one step, returns the position used
@@ -123,7 +125,7 @@ narrows rr t = second (restrictTo (vars t)) `liftM` narrows' rr t
 -- Monad stacking both monadvariant and monadenv.
 -- TODO Manually roll for speed.
 newtype NarrowingM t v m a = NarrowingM {unNarrowingM :: MVariantT v (MEnvT t v m) a}
-                           deriving (Functor, Monad, MonadPlus, MonadVariant)
+                           deriving (Functor, Applicative, Alternative, Monad, MonadPlus, MonadVariant)
 type instance Var (NarrowingM t v m) = v
 type instance TermF (NarrowingM t v m) = t
 

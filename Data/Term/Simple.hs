@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances, OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -5,22 +6,19 @@
 
 module Data.Term.Simple (TermF(..), Term1, constant, term, termId) where
 
-import Control.Applicative
 import Control.Applicative.Compose
 import Control.DeepSeq
 import Control.DeepSeq.Extras
 import Control.Monad.Free
 import Data.Bifunctor
 import Data.Char (isAlpha)
-import Data.Foldable (Foldable(..), msum)
+import Data.Foldable (msum)
 import Data.Term.Substitutions
-import Data.Traversable
 import Prelude.Extras
 import Text.PrettyPrint.HughesPJClass
 
 import qualified Data.Id.Family as Family
 import Data.Term hiding (TermF)
-import Data.Monoid (Monoid(..))
 
 import Debug.Hoed.Observe
 
