@@ -198,13 +198,13 @@ isRootDefined sig t
    | Just id <- rootSymbol t = id `Set.member` getDefinedSymbols sig
    | otherwise = False
 
-isDuplicating :: (Foldable termF, Functor termF, Ord v) => RuleF (Term termF v) -> Bool
+isDuplicating :: (GetVars t, Ord (Var t)) => RuleF t -> Bool
 isDuplicating (l :-> r) = any (\(v,occurrences) -> occurrences > occurrences_in_l v)
                               (Map.toList $ vars_r)
   where
       count xx = Map.fromListWith (+) [(x,1::Int) | x <- xx]
-      vars_r = count (vars r)
-      vars_l = count (vars l)
+      vars_r = count $ toList (getVars r)
+      vars_l = count $ toList (getVars l)
       occurrences_in_l v = fromMaybe 0 $ Map.lookup v vars_l
 
 
