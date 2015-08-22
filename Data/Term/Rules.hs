@@ -141,8 +141,8 @@ instance NFData1 Signature where
 
 instance NFData a => NFData (Signature a) where rnf = rnf1
 
-class Ord (Family.Id l) => HasSignature l where
-  getSignature :: l -> Signature (Family.Id l)
+class HasSignature l where
+  getSignature :: Ord (Family.Id l) => l -> Signature (Family.Id l)
 
 instance (HasId1 t, Foldable t, Ord(Id t)) => HasSignature (Term t v) where
   getSignature t = Sig{ definedSymbols = Map.empty
@@ -176,9 +176,9 @@ allSymbols s = Map.keysSet(definedSymbols s) `mappend` Map.keysSet (constructorS
 
 arities Sig{..} = constructorSymbols `mappend` definedSymbols
 
-getDefinedSymbols, getConstructorSymbols, getAllSymbols :: ( HasSignature l) => l -> Set (Family.Id l)
-getArities :: ( HasSignature sig) => sig -> Map (Family.Id sig) Int
-getArity :: ( HasSignature sig) => sig -> Family.Id sig -> Int
+getDefinedSymbols, getConstructorSymbols, getAllSymbols :: ( Ord (Family.Id l), HasSignature l) => l -> Set (Family.Id l)
+getArities :: ( Ord (Family.Id sig), HasSignature sig) => sig -> Map (Family.Id sig) Int
+getArity :: ( Ord (Family.Id sig), HasSignature sig) => sig -> Family.Id sig -> Int
 
 getDefinedSymbols     = Map.keysSet . definedSymbols . getSignature
 getConstructorSymbols = Map.keysSet . constructorSymbols . getSignature
@@ -190,10 +190,16 @@ getArity l f = fromMaybe (error ("getArity: symbol not in signature"))
                          (Map.lookup f constructorSymbols `mplus` Map.lookup f definedSymbols)
   where  Sig{..} = getSignature l
 
-isConstructorTerm :: (Functor t, Foldable t, HasId1 t, HasSignature sig, Family.Id t ~ Family.Id sig) => sig -> Term t v -> Bool
+isConstructorTerm :: ( Functor t, Foldable t, HasId1 t, HasSignature sig
+                     , Family.Id t ~ Family.Id sig
+                     , Ord(Family.Id sig)
+                     ) => sig -> Term t v -> Bool
 isConstructorTerm sig t = (`Set.member` getConstructorSymbols sig) `all` collectIds t
 
-isRootDefined :: ( HasId1 t, HasSignature sig, Family.Id t ~ Family.Id sig) => sig -> Term t v -> Bool
+isRootDefined :: ( HasId1 t, HasSignature sig
+                 , Family.Id t ~ Family.Id sig
+                 , Ord (Family.Id sig)
+                 ) => sig -> Term t v -> Bool
 isRootDefined sig t
    | Just id <- rootSymbol t = id `Set.member` getDefinedSymbols sig
    | otherwise = False

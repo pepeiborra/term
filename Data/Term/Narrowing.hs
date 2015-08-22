@@ -28,11 +28,8 @@ import Control.Arrow
 import Control.Monad.Logic
 #endif
 
+import Control.Monad
 import Control.Monad.Variant
-
-
-
-
 import Data.Term
 import Data.Term.Rewriting
 import Data.Term.Substitutions

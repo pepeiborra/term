@@ -20,12 +20,13 @@ import Control.Monad.Logic
 import Data.List
 import Data.Foldable as F
 
-
-import Control.Monad.Free.Extras()
+import Control.Monad
+import Control.Monad.Free.Extras ()
 import Control.Monad.Variant
 import Data.Term hiding (Rule)
 import Data.Term.Rules
 import Data.Term.Utils
+import Prelude.Extras
 
 import Debug.Hoed.Observe
 
@@ -97,7 +98,7 @@ reduce rr t = runVariantT' freshvars $ fixMP (liftM snd . rewriteStep rr) t
 #else
 -- | Normal forms, starting from leftmost outermost
 -- Assumes no extra variables in the rhs are present
-reduce :: (Ord v, Observable v, Enum v, Rename v, Eq (Term t v), Traversable t, Observable(Term t v), Match t, MonadPlus m
+reduce :: (Ord v, Observable v, Enum v, Rename v, Eq1 t, Traversable t, Observable1 t, Match t, MonadPlus m
           ) => [Rule t v] -> Term t v -> m (Term t v)
 reduce rr t = runVariantT' freshvars $ fixM_Eq (liftM snd . rewriteStep rr) t
   where freshvars = [toEnum 0 ..] \\ vars t
