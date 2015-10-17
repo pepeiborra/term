@@ -1,6 +1,9 @@
 *.pdf
+.cabal-sandbox/
+repo/
 dist/
 wordpress-theme/
+yackage/
 *.hi
 *.o
 *.p_o
@@ -8,6 +11,16 @@ wordpress-theme/
 *.*-boot
 *.*~
 *.DS_Store
+*.dot
+*.pdf
+*.config
+*.aes
+*.prof
+*.log
+*.hp
+sandbox
+
+
 # Created by http://www.gitignore.io
 
 ### Haskell ###
@@ -20,6 +33,7 @@ cabal-dev
 .virtualenv
 .hsenv
 .cabal-sandbox/
+.cabal-sandbox*
 cabal.sandbox.config
 cabal.config
 
