@@ -18,7 +18,7 @@ import Control.Monad.List
 #ifdef LOGICT
 import Control.Monad.Logic
 #endif
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.RWS
 import Control.Monad.Writer
 

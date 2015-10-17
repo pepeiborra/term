@@ -91,7 +91,7 @@ getVariant u t = runVariant' ([toEnum 0..] \\ Set.toList (getVars t)) (getFresh 
 -- ---------------
 
 data Substitution_ a where
-  Subst :: Observable(Var a) => {unSubst::Map (Var a) a} -> Substitution_ a
+  Subst :: Observable(Var a) => {unSubst :: !(Map (Var a) a)} -> Substitution_ a
 
 type Substitution t v = Substitution_(Term t v)
 type SubstitutionFor t = Substitution (TermF t) (Var t)
