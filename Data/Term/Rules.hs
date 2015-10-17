@@ -236,7 +236,8 @@ instance (Eq var, Unify f) => GetUnifier (Term f var) where
   getUnifierM = unifyM
 instance (GetUnifier t) => GetUnifier [t] where
   getUnifierM = getUnifierMdefault
-
+instance GetUnifier t => GetUnifier (Set t) where
+  getUnifierM a b = getUnifierMdefault (toList a) (toList b)
 
 getUnifierMdefault :: (Ord (Var t), GetUnifier t, MonadEnv m, Match f,
                       TermF m ~ TermF t, Var m ~ Var t) =>
@@ -265,6 +266,8 @@ instance (Eq var, Match f) => GetMatcher (Term f var) where
   getMatcherM = matchM
 instance (GetMatcher t) => GetMatcher [t] where
   getMatcherM = getMatcherMdefault
+instance (GetMatcher t) => GetMatcher (Set t) where
+  getMatcherM a b = getMatcherMdefault (toList a) (toList b)
 
 getMatcherMdefault :: (Match f, GetMatcher t, MonadEnv m,
                        TermF t ~ TermF m, Var t ~ Var m) =>

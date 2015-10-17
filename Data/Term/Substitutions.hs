@@ -58,12 +58,17 @@ class GetVars t where
   fromVar :: Var t -> t
 
 instance (Functor termF, Foldable termF, Ord var) => GetVars (Term termF var) where
-   getVars = Set.fromList . toList
+   getVars t@Impure{} = (Set.fromList . toList) t
+   getVars (Pure x) = Set.singleton x
    fromVar = Pure
 
 -- type instance Var (f t) = Var t
-instance GetVars t => GetVars [t] where getVars = foldMap getVars
-instance GetVars t => GetVars (Set t) where getVars = foldMap getVars
+instance GetVars t => GetVars [t] where
+  getVars = foldMap getVars
+  fromVar x = [fromVar x]
+instance GetVars t => GetVars (Set t) where
+  getVars = foldMap getVars
+  fromVar x = Set.singleton (fromVar x)
 -- instance (GetVars t var, Foldable f, Foldable g) => GetVars (g(f t)) var where getVars = (foldMap.foldMap) getVars
 
 
