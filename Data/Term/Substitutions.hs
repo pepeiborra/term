@@ -69,6 +69,14 @@ instance GetVars t => GetVars [t] where
 instance GetVars t => GetVars (Set t) where
   getVars = foldMap getVars
   fromVar x = Set.singleton (fromVar x)
+instance GetVars t => GetVars (Maybe t) where
+  getVars = foldMap getVars
+  fromVar x = Just (fromVar x)
+  
+instance (Var a ~ Var (t a), GetVars a, Applicative t, Foldable t) => GetVars (t a) where
+  getVars = foldMap getVars
+  fromVar x = pure (fromVar x)
+
 -- instance (GetVars t var, Foldable f, Foldable g) => GetVars (g(f t)) var where getVars = (foldMap.foldMap) getVars
 
 
@@ -100,6 +108,12 @@ data Substitution_ a where
 
 type Substitution t v = Substitution_(Term t v)
 type SubstitutionFor t = Substitution (TermF t) (Var t)
+
+type instance Var (Substitution_ t) = Var t
+
+instance (GetVars t, Observable (Var t)) => GetVars (Substitution_ t) where
+  getVars = foldMap getVars . unSubst
+  fromVar v = let t = fromVar v in Subst (Map.singleton v t)
 
 subst :: Observable(Var a) => Map (Var a) a -> Substitution_ a
 subst = Subst
