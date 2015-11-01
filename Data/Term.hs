@@ -21,7 +21,7 @@ module Data.Term (
      match, matches, equiv, equiv2, EqModulo(..),
 -- * Substitutions
      Substitution, Substitution_(..), SubstitutionFor,
-     emptySubst, appendSubst, mapSubst, fromListSubst, domain, codomain, subst, unSubst,
+     mapSubst, fromListSubst, domain, codomain, subst, unSubst,
      lookupSubst, applySubst, zonkTerm, zonkTermM, zonkSubst, isEmpty, isRenaming, restrictTo, liftSubst,
      equiv, equiv2, EqModulo(..),
 -- * Variables

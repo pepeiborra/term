@@ -40,7 +40,9 @@ instance (Rename v, Rename v') => Rename (Either v v') where
   rename _ _ = error "rename: incompatible variables"
 
 class (Rename (Var m), Monad m) => MonadVariant m where
+    -- | Returns a fresh variable
     freshVar :: m (Var m)
+    -- | Renames with a fresh variable
     renaming :: Var m-> m (Var m)
     renaming v = do {v' <- freshVar; return $ rename v v'}
 
@@ -64,15 +66,19 @@ type instance TermF (LogicT m) = TermF m
 instance MonadVariant m => MonadVariant (LogicT m) where freshVar = lift freshVar
 #endif
 
+-- | Runs a computation over the given set of fresh variables
 runVariantT' :: Monad m => [v] -> MVariantT v m a -> m a
 runVariantT' vars = (`evalStateT` vars) . unMVariant
 
+-- | Runs a computation over the set of all variables enumerated from 0 onwards
 runVariantT :: (Monad m, Enum v) => MVariantT v m a -> m a
 runVariantT = runVariantT' (map toEnum [0..])
 
+-- | Runs a computation over the given set of fresh variables
 runVariant' :: [v] -> MVariant v a -> a
 runVariant' vars = runIdentity . runVariantT' vars
 
+-- | Runs a computation over the set of all variables enumerated from 0 onwards
 runVariant :: Enum v => MVariant v a -> a
 runVariant = runVariant' [toEnum 0..]
 

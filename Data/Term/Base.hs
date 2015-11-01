@@ -47,24 +47,32 @@ type instance TermF (Term t v) = t
 type instance TermF (Term t) = t
 type instance Var   (Term t v) = v
 
+-- | Catamorphism over a term
 foldTerm :: Functor t => (a -> b) -> (t b -> b) -> Term t a -> b
 foldTerm = foldFree
 foldTermM :: (Traversable t, Monad m) => (a -> m b) -> (t b -> m b) -> Term t a -> m b
 foldTermM = foldFreeM
 
+-- | Functor from a term structure to another
 mapTerm :: (Functor t, Functor t') => (forall a. t a -> t' a) -> Term t a -> Term t' a
 mapTerm f = mapFree f
 
+-- | Destructor
 evalTerm :: (a -> b) -> (f (Free f a) -> b) -> Free f a -> b
 evalTerm = evalFree
 
+
 subterms, properSubterms, directSubterms :: Foldable termF => Term termF var -> [Term termF var]
+-- | Get all subterms of a term, including the term itself
 subterms t = t : properSubterms t
-directSubterms (Impure t) = toList t
-directSubterms _          = []
+-- | Get all the subterms of a term, excluding the term itself
 properSubterms (Impure t) =  P.concat (subterms <$> toList t)
 properSubterms _          = []
+-- | Get the direct children of a term
+directSubterms (Impure t) = toList t
+directSubterms _          = []
 
+-- | Map a endomorphism over the subterms of a term
 mapSubterms :: Functor t => (Term t v -> Term t v) -> Term t v -> Term t v
 mapSubterms f  = evalTerm return (Impure . fmap f)
 
@@ -72,11 +80,11 @@ mapMSubterms :: (Traversable t, Monad m) => (Term t v -> m(Term t v)) -> Term t 
 mapMSubterms f = evalTerm (return.return) (liftM Impure . mapM f)
 
 
--- | Only 1st level subterms
+-- | Non-deterministically applies a non-deterministic endomorphism over the children of a term
 someSubterm :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Term f a)
 someSubterm f  = evalFree (return.return) (msum . liftM2 Impure . interleaveM f)
 
--- | Only 1st level subterms
+-- | Same as 'someSubterm', but the return type includes the position
 someSubterm' :: (Traversable f, MonadPlus m) => (Term f a -> m(Term f a)) -> Term f a -> m (Position, Term f a)
 someSubterm' f  = evalTerm ( return . ([],) . return )
                            ( msum
@@ -84,6 +92,7 @@ someSubterm' f  = evalTerm ( return . ([],) . return )
                            . liftM2 Impure
                            . interleaveM f)
 
+-- | Same as 'someSubterm'', but over all the subterms not just the children
 someSubtermDeep :: (Traversable t, MonadPlus m) =>
                   (Term t a -> m(Term t a)) -> Term t a -> m (Position, Term t a)
 someSubtermDeep f t = (foldTerm (\_ -> mzero)
@@ -94,15 +103,19 @@ someSubtermDeep f t = (foldTerm (\_ -> mzero)
                       . annotate f
                       ) t
 
+-- | Collect all the subterms that satisfy a predicate
 collect :: (Foldable f, Functor f) => (Term f v -> Bool) -> Term f v -> [Term f v]
 collect pred t = [ u | u <- subterms t, pred u]
 
+-- | Returns all the variables of a term
 vars :: (Functor termF, Foldable termF) => Term termF var -> [var]
 vars = toList
 
+-- | True if the term is a variable
 isVar :: Term termF var -> Bool
 isVar = isPure
 
+-- | True if the term is linear, i.e. it contains no duplicate variables
 isLinear :: (Ord v, Foldable t, Functor t) => Term t v -> Bool
 isLinear t = length(snub varst) == length varst where
     varst = vars t
@@ -112,6 +125,7 @@ isLinear t = length(snub varst) == length varst where
 -- -----------
 type Position = [Int]
 
+-- | Returns a list with all the positions in a term
 positions :: (Functor f, Foldable f) => Term f v -> [Position]
 positions = foldFree (const [[]]) f where
     f x = [] : concat (zipWith (\i pp -> map (i:) pp) [1..] (toList x))
@@ -167,7 +181,9 @@ updateAtM pos f t = runStateT (go pos t) t where
                                where g j st = if i==j then go ii st else return st
  go _      _          = fail "updateAt: invalid position given"
 
+-- | Tuple a value with a note
 newtype WithNote note a    = Note  (note, a) deriving (Show)
+-- | Tuple a functor with a note
 newtype WithNote1 note f a = Note1 (note, f a) deriving (Show)
 
 type instance Id  (WithNote  n a) = Id a
@@ -191,19 +207,24 @@ instance Bifunctor WithNote where bimap f g (Note (n,a)) = Note (f n, g a)
 instance Bifoldable WithNote where bifoldMap f g (Note (n,a)) = f n `mappend` g a
 instance Bitraversable WithNote where bitraverse f g (Note (n,a)) = (Note.) . (,) <$> f n <*> g a
 
+-- | Given an annotated term structure, extract the top level note
 note :: Term (WithNote1 n t) (WithNote n a) -> n
 note (Impure (Note1 (n,_))) = n
 note (Pure (Note (n,_)))    = n
 
+-- | Note extract function
 noteV :: WithNote n a -> n
 noteV (Note (n,_)) = n
 
+-- | Forgetful functor for annotated terms with annotated variables
 dropNote :: Functor t => Free (WithNote1 n t) (WithNote n a) -> Free t a
 dropNote = foldTerm (\(Note (_,v)) -> return v) (\(Note1 (_,x)) -> Impure x)
 
+-- | Forgetful functor for anotated terms
 dropNote1 :: Functor t => Free (WithNote1 n t) a -> Free t a
 dropNote1 = foldTerm return (\(Note1 (_,x)) -> Impure x)
 
+-- | Annotates a term tree with the positions
 annotateWithPos :: Traversable f => Free f a -> Free (WithNote1 Position f) (WithNote Position a)
 annotateWithPos = foldFree (\v -> return $ Note ([],v))
                            (Impure . Note1 . ([],) . unsafeZipWithG(\i pp -> mapNote (i:) pp) [1..])
@@ -252,14 +273,18 @@ class MapId f where mapId  :: (id -> id') -> f id a -> f id' a
 
 instance Bitraversable f => MapId f where mapIdM f = bitraverse f pure
 
+-- | Extracts the root symbol if any
 rootSymbol :: HasId1 f => Term f v -> Maybe (Id f)
 rootSymbol = getId
 
+-- | Maps an endomorphism over the root symbol
 mapRootSymbol :: (Functor (f id), MapId f) => (id -> id) -> Term (f id) v -> Term (f id) v
 mapRootSymbol f = evalFree return (Impure . mapId f)
 
+-- | Functor that maps a morphism over all the symbols
 mapTermSymbols :: (Functor (f id), Functor (f id'), MapId f) => (id -> id') -> Term (f id) v -> Term (f id') v
 mapTermSymbols f = mapFree (mapId f)
 
+-- | Kleisli functor that maps a computation over all the symbols
 mapTermSymbolsM :: (Traversable (f id), Functor (f id'), MapId f, Applicative t, Monad t) => (id -> t id') -> Term (f id) v -> t(Term (f id') v)
 mapTermSymbolsM f = mapFreeM (mapIdM f)
