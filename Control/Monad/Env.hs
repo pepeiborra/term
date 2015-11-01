@@ -17,11 +17,12 @@ import           Data.Term.Base
 import           Data.Term.Family
 import qualified Data.Traversable as T
 
--- | Instances need only to define 'varBind' and 'lookupVar'
+-- | A monad for computations in an environment
 class Monad m => MonadEnv m where
     varBind   :: Var m -> Term (TermF m) (Var m) -> m ()
     lookupVar :: Var m -> m (Maybe (Term (TermF m) (Var m)))
 
+    -- | Fixpoint recursive lookup of a variable in the environment
     find      :: Var m -> m(Term (TermF m) (Var m))
     find v = do
       mb_t <- lookupVar v
@@ -30,6 +31,7 @@ class Monad m => MonadEnv m where
         Just t         -> varBind v t >> return t
         Nothing        -> return (Pure v)
 
+    -- | Fixpoint recursive lookup and mapping of variables in a term
     zonkM :: (Traversable (TermF m)) => (Var m -> m var') -> TermFor m -> m(Term (TermF m) var')
     zonkM fv = liftM join . T.mapM f where
         f v = do mb_t <- lookupVar v

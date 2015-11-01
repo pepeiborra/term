@@ -34,31 +34,38 @@ import Debug.Hoed.Observe
 -- * Rewriting
 ----------------------------------------
 {-# INLINABLE isNF #-}
+-- | True if the term is a normal form w.r.t. the rules
 isNF :: (Match t, Rename v, Ord v, Observable v, Observable1 t, Enum v) => [Rule t v] -> Term t v -> Bool
 isNF = isNFo nilObserver
 {-# INLINABLE isNFo #-}
+-- | True if the term is a normal form w.r.t. the rules
 isNFo :: (Match t, Rename v, Ord v, Observable v, Observable1 t, Enum v) => Observer -> [Rule t v] -> Term t v -> Bool
 isNFo o rr = null . drop 1 . rewritesO o rr
 --isNF rr = not . F.any (\t -> F.any ((`matches` t) . lhs) rr) . subterms
 
-
+-- | Rewrite one step
 rewrite1 :: (Ord v, Observable v, Enum v, Rename v, Match t, Traversable t, Observable1 t, MonadPlus m) => [Rule t v] -> Term t v -> m(Term t v)
 rewrite1 = rewrite1O nilObserver
 
+-- | Rewrite one step
 rewrite1O :: (Ord v, Observable v, Enum v, Rename v, Match t, Traversable t, Observable1 t, MonadPlus m) => Observer -> [Rule t v] -> Term t v -> m(Term t v)
 rewrite1O o rr t = runVariantT' freshvars (snd `liftM` rewriteStepO o rr t)
   where freshvars = [toEnum 0 ..] \\ vars t
 
+-- | Rewrites one step and returns information about the position
 rewrite1' :: (Ord v, Observable v, Enum v, Rename v, Match t, Traversable t, Observable1 t, MonadPlus m) => [Rule t v] -> Term t v -> m(Position, Term t v)
 rewrite1' = rewrite1O' nilObserver
 
+-- | Rewrites one step and returns information about the position
 rewrite1O' :: (Ord v, Observable v, Enum v, Rename v, Match t, Traversable t, Observable1 t, MonadPlus m) => Observer -> [Rule t v] -> Term t v -> m(Position, Term t v)
 rewrite1O' o rr t = runVariantT' freshvars $ rewriteStepO o rr t
   where freshvars = [toEnum 0 ..] \\ vars t
 
+-- | Rewrites one step at the given position
 rewrite1p :: (Ord v, Observable v, Enum v, Rename v, Match t, Traversable t, Observable1 t, MonadPlus m) => [Rule t v] -> Term t v -> Position -> m(Term t v)
 rewrite1p = rewrite1pO nilObserver
 
+-- | Rewrites one step at the given position
 rewrite1pO :: (Ord v, Observable v, Enum v, Rename v, Match t, Traversable t, Observable1 t, MonadPlus m) => Observer -> [Rule t v] -> Term t v -> Position -> m(Term t v)
 rewrite1pO o rr t p = liftM fst $ updateAtM p (rewriteTopO o rr) t
 
@@ -70,16 +77,19 @@ rewritesO :: (Ord v, Observable v, Enum v, Rename v, Match t, Traversable t, Obs
 rewritesO o rr t = runVariantT' freshvars $ closureMP (liftM snd . rewriteStepO o rr) t
   where freshvars = [toEnum 0 ..] \\ vars t
 
+-- | Computation to rewrite one step
 rewriteStep :: (Ord v, Observable v, Match t, Traversable t, Observable1 t, Rename v, v ~ Var m, MonadVariant m, MonadPlus m
                ) => [Rule t v] -> Term t v -> m (Position, Term t v)
 rewriteStep rr = rewriteStepO nilObserver rr
 
+-- | Computation to rewrite one step
 rewriteStepO :: (Ord v, Observable v, Match t, Traversable t, Observable1 t, Rename v, v ~ Var m, MonadVariant m, MonadPlus m
                ) => Observer -> [Rule t v] -> Term t v -> m (Position, Term t v)
 rewriteStepO o rr t = do
    rr' <- mapM getFresh rr
    someSubtermDeep (rewriteTopO o rr') t
 
+-- | Computation to rewrite the top term one step
 rewriteTopO :: (MonadPlus m, Ord v, Observable v, Observable1 t, Match t
                ) => Observer -> [RuleF (Term t v)] -> Term t v -> m (Term t v)
 rewriteTopO (O o _) rr t = F.msum $ forEach rr $ \r -> do

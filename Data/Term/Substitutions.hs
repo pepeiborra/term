@@ -52,7 +52,7 @@ import Debug.Hoed.Observe.Instances
 -- * Variables
 -- ---------------
 
-
+-- | The class of functions for getting the variables of a value
 class GetVars t where
   getVars :: Ord (Var t) => t -> Set (Var t)
   fromVar :: Var t -> t
@@ -79,7 +79,7 @@ instance (Var a ~ Var (t a), GetVars a, Applicative t, Foldable t) => GetVars (t
 
 -- instance (GetVars t var, Foldable f, Foldable g) => GetVars (g(f t)) var where getVars = (foldMap.foldMap) getVars
 
-
+-- | The class of computations that get a fresh variant of a value
 class GetFresh thing where
     getFreshM :: (TermF thing ~ TermF m, Var thing ~ Var m, Traversable (TermF thing), MonadEnv m, MonadVariant m) => thing -> m thing
 
@@ -87,13 +87,16 @@ instance (Traversable termF) => GetFresh (Term termF var) where getFreshM = fres
 instance (Ord a, GetFresh a) => GetFresh (Set a)          where getFreshM = liftM Set.fromList . getFreshM . Set.toList
 instance GetFresh t => GetFresh [t] where getFreshM = getFreshMdefault
 
+-- | Default implementation of getFresh for traversable structures
 getFreshMdefault :: (Traversable t, GetFresh a, MonadVariant m, MonadEnv m, Var a ~ Var m, term ~ TermF a, term ~ TermF m, Traversable term) => t a -> m (t a)
 getFreshMdefault = T.mapM getFreshM
 
+-- | Returns a MonadVariant computation that produces a fresh variant of a value
 getFresh :: (MonadVariant m, Observable (Var m), Ord (Var m), GetFresh thing, Traversable (TermF thing), Var thing ~ Var m) =>
             thing -> m thing
 getFresh t = evalMEnv (getFreshM t)
 
+-- | Returns a locally fresh variant of a value
 getVariant :: ( v ~ Var t, v ~ Var t'
               , Ord v, Observable v, Enum v, Rename v, GetFresh t, GetVars t', Traversable (TermF t)) => t -> t' -> t
 getVariant u t = runVariant' ([toEnum 0..] \\ Set.toList (getVars t)) (getFresh u)
@@ -115,12 +118,12 @@ instance (GetVars t, Observable (Var t)) => GetVars (Substitution_ t) where
   getVars = foldMap getVars . unSubst
   fromVar v = let t = fromVar v in Subst (Map.singleton v t)
 
+-- | Smart constructor
 subst :: Observable(Var a) => Map (Var a) a -> Substitution_ a
 subst = Subst
 
+-- | Functor over substitutions
 mapSubst f = liftSubst (fmap f)
-
-s1 `appendSubst` s2 =  liftSubst2 Map.union (applySubst s2 `mapSubst` s1) s2
 
 deriving instance (Eq a,   Eq (Var a))   => Eq (Substitution_ a)
 deriving instance (Ord a,  Ord (Var a))  => Ord (Substitution_ a)
@@ -129,19 +132,27 @@ deriving instance (Show a, Show (Var a)) => Show (Substitution_ a)
 instance (NFData a, NFData(Var a)) => NFData (Substitution_ a) where
   rnf = rnf . unSubst
 
-emptySubst :: (Observable(Var a), Ord(Var a)) => Substitution_ a
-emptySubst = subst mempty
+-- | Append composes two substitutions s. t.
+-- >    (s1 `mappend` s2) `applyS` t = s1 `applyS` s2 `applyS` t
+instance (a ~ Var (t a), Ord a, Monad t, Observable a) => Monoid (Substitution_ (t a)) where
+  mappend s1 s2 = liftSubst2 Map.union (applySubst s2 `mapSubst` s1) s2
+  mempty        = subst mempty
 
+-- | Lifts a function over substitutions
 liftSubst :: (Observable(Var a), Observable(Var b)) =>
              (Map (Var a) a -> Map (Var b) b) ->
              Substitution_ a -> Substitution_ b
 liftSubst f (unSubst -> e) = subst (f e)
+
+-- | Lifts a function over substitutions
 liftSubst2 f (unSubst -> e) (unSubst -> b) = subst (f e b)
 
+-- | Look up a variable contents
 lookupSubst :: (Ord(Var a)) =>
                Var a -> Substitution_ a -> Maybe a
 lookupSubst v (unSubst -> m) = Map.lookup v m
 
+-- | Apply a substitution over a term variables
 applySubst :: (Ord a, Monad t, a ~ Var(t a)
               ) => Substitution_ (t a) -> t a -> (t a)
 applySubst s = (>>= f) where
@@ -149,12 +160,15 @@ applySubst s = (>>= f) where
             Nothing -> return v
             Just t' -> t'
 
+-- | Returns the set of variables assigned by the substitution
 domain :: (Ord(Var t)) => Substitution_ t -> Set (Var t)
 domain = Map.keysSet . unSubst
 
+-- | Returns the multiset of terms in the codomain of the substitution
 codomain :: () => Substitution_ t -> [t]
 codomain = Map.elems . unSubst
 
+-- | Restrict a substitution
 restrictTo :: (Ord(Var t), Observable(Var t)
               ) => [Var t] -> Substitution_ t -> Substitution_ t
 restrictTo vv = liftSubst f where
@@ -163,10 +177,12 @@ restrictTo vv = liftSubst f where
 isEmpty :: (Ord(Var t)) => Substitution_ t -> Bool
 isEmpty (unSubst -> m) = Map.null m
 
+-- | Construct a substitution from an association list
 fromListSubst :: (Ord (Var term), Observable(Var term)
                  ) => [(Var term,term)] -> Substitution_ term
 fromListSubst = subst . Map.fromList
 
+-- | Fixpoint application of a substitution over a term with pure mapping of variables
 zonkTerm :: (v ~ Var (t v), Ord v, Monad t
             ) => Substitution_ (t v) -> (v -> v') -> t v -> t v'
 zonkTerm subst fv = (>>= f) where
@@ -174,6 +190,7 @@ zonkTerm subst fv = (>>= f) where
            Nothing -> return (fv v)
            Just t  -> zonkTerm subst fv t
 
+-- | Fixpoint application of a substitution over a term with effectful variable mapping
 zonkTermM :: (termF ~ TermF m, var ~ Var m, Traversable termF, Ord var, MonadEnv m) =>
              (var -> m var') -> Term termF var -> m(Term termF var')
 zonkTermM fv = liftM join . mapM f where
@@ -182,10 +199,12 @@ zonkTermM fv = liftM join . mapM f where
               Nothing -> Pure `liftM` fv v
               Just t  -> zonkTermM fv t
 
+-- | Fixpoint of a substitution
 zonkSubst :: (v ~ Var(t v),  Ord v, Monad t, Observable v
              ) => Substitution_ (t v) -> Substitution_ (t v)
 zonkSubst s = liftSubst (Map.map (zonkTerm s id)) s
 
+-- | True if the substitution is a renaming, i.e. it maps variables to variables
 isRenaming :: (Foldable termF, Functor termF, Ord var, Ord (Term termF var)
               ) => Substitution termF var -> Bool
 isRenaming (unSubst -> subst) = all isVar (Map.elems subst) && isBijective (Map.mapKeysMonotonic return subst)
@@ -266,18 +285,23 @@ instance (Observable a, Monad m) => Observable (MEnvT t v m a) where
 -- ------------------------------------
 -- * Unification (without occurs check)
 -- ------------------------------------
+-- | True if two terms unify with each other (no occurrs check)
 unifies :: forall termF var. (Unify termF, Ord var, Observable var) => Term termF var -> Term termF var -> Bool
 unifies t u = isJust (unify t u)
 
+-- | Returns a substitution s.t. @\sigma(t) = \sigms(u)@ if it exists
 unify :: (Unify termF, Ord var, Observable var) => Term termF var -> Term termF var -> Maybe (Substitution termF var)
 
 unify t u = fmap zonkSubst (execMEnv (unifyM t u))
 
+-- | The class of unifiable terms
 class (Traversable termF, Match termF) => Unify termF
   where unifyM :: (MonadEnv m, Ord (Var m), TermF m ~ termF) => Term termF (Var m) -> Term termF (Var m) -> m ()
 
 -- Generic instance
 instance (Match termF) => Unify termF where
+  -- | A computation for unifying two terms in an environment.
+  --   Instances should use Monadic fail to denote failure
   unifyM :: forall m. (MonadEnv m, Ord(Var m), TermF m ~ termF) =>
             Term termF (Var m) -> Term termF (Var m) -> m ()
   unifyM t s = do
@@ -319,10 +343,12 @@ occursIn v t = do
 -- * Matching
 -- ----------
 {-# INLINABLE matches #-}
+-- | True if there is a substitution such that \sigma(t) = u
 matches :: forall termF var. (Ord var, Observable var, Match termF) => Term termF var -> Term termF var -> Bool
 matches t u = isJust (match t u)
 
 {-# INLINABLE match #-}
+-- | Returns a substitution s.t. @ \sigma(t) = u @
 match :: (Ord var, Match termF, Observable var
          ) => Term termF var -> Term termF var -> Maybe(Substitution termF var)
 match t u = execMEnv (matchM t u)
@@ -336,6 +362,7 @@ deriving instance (Foldable f, Foldable g) => Foldable (f :+: g)
 deriving instance (Traversable f, Traversable g) => Traversable (f :+: g)
 
 {-# INLINABLE matchM #-}
+-- A monadic computation that tries to match two terms in an environment.
 matchM :: forall m. (Eq (Var m), Match(TermF m), MonadEnv m
                     ) => TermFor m -> TermFor m -> m ()
 matchM t s = do
@@ -358,11 +385,13 @@ matchM t s = do
 -- ** Equivalence up to renaming
 -- -----------------------------
 {-# INLINABLE equiv #-}
+-- | Equivalence up to renaming (using one match)
 equiv :: forall termF var.
          (Ord var, Observable var, Rename var, Enum var, Ord (Term termF var), Unify termF) => Term termF var -> Term termF var -> Bool
 equiv t u = t == u || maybe False isRenaming (match (variant t u) u)
 
 {-# INLINABLE equiv2 #-}
+-- | Equivalence up to renaming (using two matches)
 equiv2 :: (Rename var, Ord var, Observable var, Enum var, Unify termF) => Term termF var -> Term termF var -> Bool
 equiv2 t u = let t' = variant t u in matches t' u && matches u t'
 
@@ -376,7 +405,7 @@ instance (Ord v, Observable v, Rename v, Enum v, Unify t, Ord (Term t v)) => Ord
 -- --------------------------------
 -- * Variants of terms and rules
 -- --------------------------------
-
+-- | A computation that returns a fresh variant of a term obtained using 'renaming'
 fresh ::  (v ~ Var m, Traversable (TermF m), MonadEnv m, MonadVariant m) =>
          Term (TermF m) v -> m (Term (TermF m) v)
 fresh = go where
@@ -387,6 +416,7 @@ fresh = go where
             Nothing -> do {v' <- renaming v; varBind v (return v'); return (return v')}
             Just v' -> return v'
 
+-- | As 'fresh' but using the given rename function instead of the 'Rename' class
 freshWith :: (Traversable (TermF m), MonadEnv m, MonadVariant m) =>
                (Var m -> Var m -> Var m) -> TermFor m -> m (TermFor m)
 freshWith fv = go where
@@ -397,6 +427,7 @@ freshWith fv = go where
             Nothing -> do {v' <- fv v `liftM` freshVar; varBind v (return v'); return (return v')}
             Just (Pure v') -> return (Pure v')
 
+-- | Statically checked renaming of a term
 freshWith' :: (Rename var, Observable var, Observable var', Ord var', Ord var, var' ~ Var m, Traversable t, MonadVariant m) =>
                (var -> var' -> var') -> Term t var -> m (Term t var')
 freshWith' fv t = variantsWith Right $ evalMEnv $
@@ -405,7 +436,7 @@ freshWith' fv t = variantsWith Right $ evalMEnv $
  where
   fv' (Left v) (Right v') = Right (fv v v')
 
-
+-- | Given two terms @t@ and @u@, returns a fresh variant of @t@ which shares no variables with @u@
 variant :: forall v t t'. (Ord v, Observable v, Rename v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v
 variant u t = runVariant' ([toEnum 0..] \\ vars t) (evalMEnv(fresh u))
 
