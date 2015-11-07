@@ -430,11 +430,11 @@ freshWith fv = go where
 -- | Statically checked renaming of a term
 freshWith' :: (Rename var, Observable var, Observable var', Ord var', Ord var, var' ~ Var m, Traversable t, MonadVariant m) =>
                (var -> var' -> var') -> Term t var -> m (Term t var')
-freshWith' fv t = variantsWith Right $ evalMEnv $
-                  (liftM.fmap) (\(Right x) -> x)
-                               (freshWith fv' (fmap Left t))
+freshWith' fv t = variantsWith Right $ evalMEnv $ (getRight <$$> freshWith fv' (fmap Left t))
  where
   fv' (Left v) (Right v') = Right (fv v v')
+  (<$$>) = fmap . fmap
+  getRight(Right x) = x
 
 -- | Given two terms @t@ and @u@, returns a fresh variant of @t@ which shares no variables with @u@
 variant :: forall v t t'. (Ord v, Observable v, Rename v, Enum v, Functor t', Foldable t', Traversable t) => Term t v -> Term t' v -> Term t v

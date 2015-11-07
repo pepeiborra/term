@@ -51,7 +51,7 @@ newtype MVariantT v m a = MVariant {unMVariant :: StateT [v] m a} deriving (Appl
 type MVariant v a = MVariantT v Identity a
 
 type instance Var (MVariantT v m) = v
-instance (Enum v, Rename v, Monad m) => MonadVariant (MVariantT v m) where
+instance (Rename v, Monad m) => MonadVariant (MVariantT v m) where
     freshVar = do { x:xx <- MVariant get; MVariant(put xx); return x}
 
 
@@ -94,7 +94,7 @@ observeComp name comp p = do
     send name (return return << res) p
 
 -- * A rebranding function
-
+-- | Applies the Yoneda transformation over MonadVariant
 newtype WrappedMVariant v v' m a = WrappedMVariant {unwrapMVariant :: (v -> v') -> m a}
 
 instance Monad m => Functor(WrappedMVariant v v' m) where
@@ -117,6 +117,7 @@ instance (MonadVariant m, Rename v', v ~ Var m) => MonadVariant (WrappedMVariant
   freshVar = WrappedMVariant ( `liftM` freshVar)
 
 -- variantsWith :: (MonadVariant m, Var m ~ v') => (v -> v') -> m a -> MVariantT v m a
+-- | Applies a morphism on the source of fresh variables of a MonadVariant computation
 variantsWith = flip unwrapMVariant -- f m = unwrapMVariant (WrappedMVariant m) f
 
 
